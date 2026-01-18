@@ -9,6 +9,9 @@ import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 
 import { siteConfig } from "@/config/site";
 
+// Initialize cron scheduler on app startup
+import "@/lib/initScheduler";
+
 export const metadata: Metadata = {
   title: {
     default: siteConfig.name,

@@ -1,5 +1,6 @@
 // pages/api/test.ts or app/api/test/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import jwt from "jsonwebtoken";
 
 import clientPromise from "@/lib/mongodb";
 
@@ -19,14 +20,35 @@ export async function GET(req: NextRequest) {
     const query = req.nextUrl.searchParams;
     const email = Object.fromEntries(query.entries()).email;
 
+    console.log("🔍 getLeads: Looking for leads assigned to:", email);
+
+    // Get customer database from JWT token
+    const token = req.cookies.get("appToken")?.value;
+    if (!token) {
+      console.error("❌ getLeads: No token found");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const dbName = decoded.dbName;
+
+    console.log("✅ getLeads: Using database:", dbName);
+
+    if (!dbName) {
+      console.error("❌ getLeads: No dbName in token");
+      return NextResponse.json({ error: "Customer database not found" }, { status: 400 });
+    }
+
     const client = await clientPromise;
     if (!client) {
+      console.error("❌ getLeads: MongoDB client unavailable");
       return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
     }
-    const db = client!.db(process.env.DB_NAME);
+    const db = client!.db(dbName);
 
     const collection = db.collection("leads");
     const leads = await collection.find({ assignedTo: email }).toArray();
+
+    console.log(`✅ getLeads: Found ${leads.length} leads for ${email} in ${dbName}`);
 
     if (leads) {
       return NextResponse.json(leads, { status: 200 });

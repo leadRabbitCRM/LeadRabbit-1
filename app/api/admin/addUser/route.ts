@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { ObjectId } from "mongodb";
+import jwt from "jsonwebtoken";
 
 import clientPromise from "@/lib/mongodb";
+import { isEmailTaken } from "@/lib/multitenancy";
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   // Prevent execution during build time
   if (process.env.NODE_ENV === 'development' && !process.env.MONGODB_URI) {
     return NextResponse.json(
@@ -17,12 +19,25 @@ export async function GET() {
   }
 
   try {
+    // Get token from cookies and decode to get customer's database
+    const token = req.cookies.get("appToken")?.value;
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const dbName = decoded.dbName;
+
+    if (!dbName) {
+      return NextResponse.json({ error: "Customer database not found" }, { status: 400 });
+    }
+
     const client = await clientPromise;
     if (!client) {
       console.error("MongoDB client unavailable");
       return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
     }
-    const db = client!.db(process.env.DB_NAME);
+    const db = client!.db(dbName);
     const usersCollection = db.collection("users");
 
     const users = await usersCollection
@@ -51,6 +66,19 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Get token from cookies and decode to get customer's database
+    const token = req.cookies.get("appToken")?.value;
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const dbName = decoded.dbName;
+
+    if (!dbName) {
+      return NextResponse.json({ error: "Customer database not found" }, { status: 400 });
+    }
+
     const body = await req.json();
     const { name, role, status, email, password } = body;
 
@@ -60,16 +88,16 @@ export async function POST(req: NextRequest) {
       console.error("MongoDB client unavailable");
       return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
     }
-    const db = client!.db(process.env.DB_NAME);
+    const db = client!.db(dbName);
     const usersCollection = db.collection("users");
     const employeesCollection = db.collection("employees");
 
-    // Check if email already exists
-    const existingUser = await usersCollection.findOne({ email });
+    // Check if email already exists across all customers (global uniqueness)
+    const emailTaken = await isEmailTaken(email);
 
-    if (existingUser) {
+    if (emailTaken) {
       return NextResponse.json(
-        { error: "Email already registered" },
+        { error: "This email is already in use. Please use a different email." },
         { status: 400 },
       );
     }
@@ -77,6 +105,13 @@ export async function POST(req: NextRequest) {
     // Hash password
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Generate TOTP secret
+    const speakeasy = require("speakeasy");
+    const totpSecret = speakeasy.generateSecret({
+      name: `LeadRabbit (${email})`,
+      issuer: 'LeadRabbit'
+    });
 
     // Create user
     const now = new Date();
@@ -88,6 +123,8 @@ export async function POST(req: NextRequest) {
       status: status || "active",
       email,
       password: hashedPassword,
+      totpSecret: totpSecret.base32,
+      totpEnabled: false,
       createdAt: now,
       updatedAt: now,
       isVerified: false,

@@ -168,7 +168,7 @@ Your CRM leads with Meta data
   email: "string",
   phone: "string",
   source: "facebook" | "instagram",
-  status: "new",
+  status: "New",
   metaData: {
     leadId: "string",
     formId: "string",

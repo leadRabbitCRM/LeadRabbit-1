@@ -182,7 +182,7 @@ function convertMetaLeadToCRM(metaLead: MetaLead): CRMLead | null {
       email: email,
       phone: phone,
       source: metaLead.platform,
-      status: "new",
+      status: "New",
       createdAt: new Date(metaLead.created_time),
       updatedAt: new Date(),
       metaData: {

@@ -39,10 +39,16 @@ export async function GET(req: NextRequest) {
     const decoded = jwt.verify(token, secret) as {
       email?: string;
       role?: string;
+      dbName?: string;
     };
 
     const email = decoded.email;
     const role = decoded.role ?? null;
+    const dbName = decoded.dbName;
+
+    if (!dbName) {
+      return NextResponse.json({ error: "Customer database not found" }, { status: 400 });
+    }
 
     let profile: {
       name?: string | null;
@@ -57,7 +63,7 @@ export async function GET(req: NextRequest) {
         if (!client) {
           return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
         }
-        const db = client!.db(process.env.DB_NAME);
+        const db = client!.db(dbName);
         const userDoc = await db
           .collection("users")
           .findOne(

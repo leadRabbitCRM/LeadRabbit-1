@@ -347,7 +347,7 @@ Facebook's OAuth flow differs from Google's OAuth:
 │      email: "john@example.com",                               │
 │      phone: "+1 (555) 123-4567",                             │
 │      source: "facebook",  // or "instagram"                   │
-│      status: "new",                                           │
+│      status: "New",                                           │
 │      tags: ["facebook-lead"],                                 │
 │      metaData: {                                              │
 │        leadId: "LEAD_ID",                                     │
@@ -848,7 +848,7 @@ Existing CRM leads collection with Meta data.
   company: "Acme Corp",
   
   // Lead Status
-  status: "new",                          // new, contacted, qualified, etc.
+  status: "New",                          // new, contacted, qualified, etc.
   
   // Source Tracking
   source: "facebook",                     // "facebook", "instagram", "manual", "website", "other"

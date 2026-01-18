@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
     }
     const db = client!.db(process.env.DB_NAME);
-    const leadData = { ...body, assignedTo: "", status: "new" };
+    const leadData = { ...body, assignedTo: "", status: "New" };
     const result = await db.collection("leads").insertOne(leadData);
 
     if (result.acknowledged) {

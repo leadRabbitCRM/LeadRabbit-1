@@ -183,6 +183,7 @@ export default function EmpTable() {
   const router = useRouter();
   const [isHydrated, setIsHydrated] = React.useState(false);
   const [users, setUsers] = React.useState([]);
+  const [currentUserEmail, setCurrentUserEmail] = React.useState(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [fetchError, setFetchError] = React.useState(null);
   const [filterValue, setFilterValue] = React.useState("");
@@ -229,6 +230,23 @@ export default function EmpTable() {
   // Mark hydration as complete
   React.useEffect(() => {
     setIsHydrated(true);
+  }, []);
+
+  // Fetch current logged-in user's email
+  React.useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await fetch("/api/me", { cache: "no-store" });
+        if (response.ok) {
+          const data = await response.json();
+          console.log("Current logged-in user email:", data.email);
+          setCurrentUserEmail(data.email);
+        }
+      } catch (error) {
+        console.error("Error fetching current user", error);
+      }
+    };
+    fetchCurrentUser();
   }, []);
 
   const fetchUsers = React.useCallback(async () => {
@@ -705,15 +723,17 @@ export default function EmpTable() {
                   >
                     Update Profile
                   </DropdownItem>
-                  <DropdownItem
-                    key="delete"
-                    className="text-danger"
-                    color="danger"
-                    startContent={<TrashIcon className="w-4 h-4" />}
-                    onPress={() => handleOpenDelete(user)}
-                  >
-                    Delete Employee
-                  </DropdownItem>
+                  {currentUserEmail && user.email !== currentUserEmail && (
+                    <DropdownItem
+                      key="delete"
+                      className="text-danger"
+                      color="danger"
+                      startContent={<TrashIcon className="w-4 h-4" />}
+                      onPress={() => handleOpenDelete(user)}
+                    >
+                      Delete Employee
+                    </DropdownItem>
+                  )}
                 </DropdownMenu>
               </Dropdown>
             </div>
@@ -1116,15 +1136,17 @@ export default function EmpTable() {
                       >
                         Update Profile
                       </DropdownItem>
-                      <DropdownItem
-                        key="delete"
-                        className="text-danger"
-                        color="danger"
-                        startContent={<TrashIcon className="w-4 h-4" />}
-                        onPress={() => handleOpenDelete(user)}
-                      >
-                        Delete Employee
-                      </DropdownItem>
+                      {currentUserEmail && user.email !== currentUserEmail && (
+                        <DropdownItem
+                          key="delete"
+                          className="text-danger"
+                          color="danger"
+                          startContent={<TrashIcon className="w-4 h-4" />}
+                          onPress={() => handleOpenDelete(user)}
+                        >
+                          Delete Employee
+                        </DropdownItem>
+                      )}
                     </DropdownMenu>
                   </Dropdown>
                 </div>

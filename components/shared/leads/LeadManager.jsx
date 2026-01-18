@@ -707,6 +707,7 @@ export default function LeadManager({
             onEngagementsChange={handleLeadEngagementsChange}
             isAdmin={isAdmin}
             users={allUsers}
+            navigateTo={isAdmin ? "/admin/allLeads" : "/user/allLeads"}
           />
         ) : (
           renderEmptyState()

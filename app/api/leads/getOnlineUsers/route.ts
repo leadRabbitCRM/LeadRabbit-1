@@ -1,5 +1,6 @@
 // pages/api/test.ts or app/api/test/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import jwt from "jsonwebtoken";
 
 import clientPromise from "@/lib/mongodb";
 
@@ -16,11 +17,23 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Get customer database from JWT token
+    const token = req.cookies.get("appToken")?.value;
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const dbName = decoded.dbName;
+
+    if (!dbName) {
+      return NextResponse.json({ error: "Customer database not found" }, { status: 400 });
+    }
+
     const client = await clientPromise;
     if (!client) {
       return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
     }
-    const db = client!.db(process.env.DB_NAME);
+    const db = client!.db(dbName);
 
     const collection = db.collection("users");
     const leads = await collection.find({ isOnline: true }).toArray();

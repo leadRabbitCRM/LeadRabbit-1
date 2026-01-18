@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
+import jwt from "jsonwebtoken";
 import clientPromise from "@/lib/mongodb";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,18 @@ export async function GET(
       );
     }
 
+    // Get customer database from JWT token
+    const token = req.cookies.get("appToken")?.value;
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const dbName = decoded.dbName;
+
+    if (!dbName) {
+      return NextResponse.json({ error: "Customer database not found" }, { status: 400 });
+    }
+
     const client = await clientPromise;
     if (!client) {
       return NextResponse.json(
@@ -26,7 +39,7 @@ export async function GET(
       );
     }
 
-    const db = client.db(process.env.DB_NAME);
+    const db = client.db(dbName);
     const leadsCollection = db.collection("leads");
 
     // Try to parse as ObjectId if it's a valid MongoDB ID
@@ -76,6 +89,18 @@ export async function PATCH(
 
     const body = await req.json();
 
+    // Get customer database from JWT token
+    const token = req.cookies.get("appToken")?.value;
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const dbName = decoded.dbName;
+
+    if (!dbName) {
+      return NextResponse.json({ error: "Customer database not found" }, { status: 400 });
+    }
+
     const client = await clientPromise;
     if (!client) {
       return NextResponse.json(
@@ -84,7 +109,7 @@ export async function PATCH(
       );
     }
 
-    const db = client.db(process.env.DB_NAME);
+    const db = client.db(dbName);
     const leadsCollection = db.collection("leads");
 
     // Handle both ObjectId and string IDs
@@ -102,14 +127,14 @@ export async function PATCH(
       { returnDocument: "after" }
     );
 
-    if (!result || !result.value) {
+    if (!result) {
       return NextResponse.json(
         { error: "Lead not found" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(result.value);
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Error updating lead:", error);
     return NextResponse.json(

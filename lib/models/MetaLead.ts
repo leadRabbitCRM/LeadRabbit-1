@@ -51,7 +51,7 @@ export interface CRMLead {
   email: string;
   phone?: string;
   source: "facebook" | "instagram" | "manual" | "website" | "other";
-  status: "new" | "contacted" | "qualified" | "closed" | "lost";
+  status: "New" | "contacted" | "qualified" | "closed" | "lost";
   assignedTo?: string;
   createdAt: Date;
   updatedAt: Date;

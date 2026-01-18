@@ -443,7 +443,7 @@ function convertMetaLeadToCRM(metaLead: MetaLead): CRMLead | null {
       email: email,
       phone: phone,
       source: metaLead.platform,
-      status: "new",
+      status: "New",
       createdAt: new Date(),
       updatedAt: new Date(),
       metaData: {

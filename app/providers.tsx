@@ -2,7 +2,7 @@
 
 import type { ThemeProviderProps } from "next-themes";
 
-import { ToastProvider } from "@heroui/toast";
+import { ToastProvider } from "@heroui/react";
 import * as React from "react";
 import { HeroUIProvider } from "@heroui/system";
 import { useRouter } from "next/navigation";
@@ -16,7 +16,7 @@ export interface ProvidersProps {
 declare module "@react-types/shared" {
   interface RouterConfig {
     routerOptions: NonNullable<
-      Parameters<ReturnType<typeof useRouter>["push"]>[1] 
+      Parameters<ReturnType<typeof useRouter>["push"]>[1]
     >;
   }
 }
@@ -26,8 +26,8 @@ export function Providers({ children, themeProps }: ProvidersProps) {
 
   return (
     <HeroUIProvider navigate={router.push}>
+      <ToastProvider placement="top-center"/>
       <NextThemesProvider {...themeProps}>
-        <ToastProvider placement="top-center" />
         {children}
       </NextThemesProvider>
     </HeroUIProvider>

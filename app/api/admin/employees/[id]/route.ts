@@ -182,10 +182,10 @@ async function resolveAdmin(req: NextRequest) {
     } as const;
   }
 
-  let decoded: TokenPayload;
+  let decoded: any;
 
   try {
-    decoded = jwt.verify(token, secret) as TokenPayload;
+    decoded = jwt.verify(token, secret);
   } catch (_error) {
     return { status: 403, error: "Invalid token" } as const;
   }
@@ -195,8 +195,9 @@ async function resolveAdmin(req: NextRequest) {
   }
 
   const email = decoded.email;
+  const dbName = decoded.dbName;
 
-  if (!email) {
+  if (!email || !dbName) {
     return { status: 400, error: "Invalid token payload" } as const;
   }
 
@@ -204,7 +205,7 @@ async function resolveAdmin(req: NextRequest) {
   if (!client) {
     return { status: 503, error: "Database unavailable" } as const;
   }
-  const db = client!.db(process.env.DB_NAME);
+  const db = client!.db(dbName);
   const usersCollection = db.collection("users");
 
   const adminUser = await usersCollection.findOne({ email });

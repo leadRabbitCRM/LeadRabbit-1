@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import jwt from "jsonwebtoken";
 import clientPromise from "@/lib/mongodb";
 import { resolveAuthenticatedUser } from "../../../_utils/auth";
 import { ObjectId } from "mongodb";
@@ -42,11 +43,20 @@ export async function PATCH(
       );
     }
 
+    // Get customer database from JWT token
+    const token = req.cookies.get("appToken")?.value;
+    const decoded = jwt.verify(token!, process.env.JWT_SECRET!) as any;
+    const dbName = decoded.dbName;
+
+    if (!dbName) {
+      return NextResponse.json({ error: "Customer database not found" }, { status: 400 });
+    }
+
     const client = await clientPromise;
     if (!client) {
       return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
     }
-    const db = client!.db(process.env.DB_NAME);
+    const db = client!.db(dbName);
     const leadsCollection = db.collection("leads");
 
     let updateData: any = {};

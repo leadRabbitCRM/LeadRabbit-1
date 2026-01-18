@@ -3,12 +3,14 @@ import { Db } from "mongodb";
 import jwt from "jsonwebtoken";
 
 import clientPromise from "@/lib/mongodb";
+import { getCustomerDb } from "@/lib/multitenancy";
 
 export type AuthenticatedUser = {
   status: 200;
   db: Db;
   email: string;
   role: string;
+  customerId: string;
   userDoc: Record<string, unknown>;
 };
 
@@ -38,30 +40,46 @@ export async function resolveAuthenticatedUser(
 
   const secret = process.env.JWT_SECRET;
 
-  let decoded: { email?: string; role?: string };
+  let decoded: { email?: string; role?: string; customerId?: string; dbName?: string };
 
   try {
-    decoded = jwt.verify(token, secret) as { email?: string; role?: string };
+    decoded = jwt.verify(token, secret) as { 
+      email?: string; 
+      role?: string; 
+      customerId?: string;
+      dbName?: string;
+    };
   } catch {
     return { status: 403, error: "Invalid token" };
   }
 
   const email = decoded.email;
   const role = decoded.role;
+  const customerId = decoded.customerId;
 
   if (!email || !role) {
     return { status: 400, error: "Invalid token payload" };
   }
 
+  // Super admin doesn't need customer database
+  if (role === "superadmin") {
+    return { status: 403, error: "Super admin cannot access customer endpoints" };
+  }
+
+  if (!customerId) {
+    return { status: 400, error: "Customer ID missing in token" };
+  }
+
   try {
-    const client = await clientPromise;
-    if (!client) {
-      console.error("MongoDB client unavailable (auth)");
+    // Get customer database using multi-tenancy
+    const db = await getCustomerDb(customerId);
+    
+    if (!db) {
+      console.error("Customer database unavailable:", customerId);
       return { status: 503, error: "Database unavailable" } as const;
     }
-    const db = client!.db(process.env.DB_NAME);
-    const usersCollection = db.collection("users");
 
+    const usersCollection = db.collection("users");
     const userDoc = await usersCollection.findOne({ email });
 
     if (!userDoc) {
@@ -73,6 +91,7 @@ export async function resolveAuthenticatedUser(
       db,
       email,
       role,
+      customerId,
       userDoc,
     };
   } catch (error) {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import jwt from "jsonwebtoken";
 import clientPromise from "@/lib/mongodb";
 
 // Force dynamic rendering
@@ -14,15 +15,34 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Get customer database from JWT token
+    const token = req.cookies.get("appToken")?.value;
+    if (!token) {
+      console.error("❌ getAllLeads: No token found");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const dbName = decoded.dbName;
+
+    console.log("✅ getAllLeads: Using database:", dbName);
+
+    if (!dbName) {
+      console.error("❌ getAllLeads: No dbName in token");
+      return NextResponse.json({ error: "Customer database not found" }, { status: 400 });
+    }
+
     const client = await clientPromise;
     if (!client) {
+      console.error("❌ getAllLeads: MongoDB client unavailable");
       return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
     }
-    const db = client!.db(process.env.DB_NAME);
+    const db = client!.db(dbName);
     const leadsCollection = db.collection("leads");
 
     // Get ALL leads for admin view (no filters whatsoever)
     const leads = await leadsCollection.find({}).toArray();
+
+    console.log(`✅ getAllLeads: Found ${leads.length} leads in ${dbName}`);
 
     return NextResponse.json(leads, { status: 200 });
   } catch (error) {
