@@ -272,6 +272,7 @@ async function processNewLead(
 
     const metaLeadsCollection = customerDb.collection("meta_leads");
     const crmLeadsCollection = customerDb.collection("leads");
+    const metaPagesCollection = customerDb.collection("meta_pages");
 
     console.log(`✅ Page is active, processing lead...`);
 
