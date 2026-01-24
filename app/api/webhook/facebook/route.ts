@@ -233,16 +233,33 @@ async function processNewLead(
       console.error("❌ MongoDB client unavailable for webhook");
       return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
     }
-    const db = client!.db(process.env.DB_NAME);
 
-    // Check if the page is active
-    const metaPagesCollection = db.collection("meta_pages");
-    const page = await metaPagesCollection.findOne({ pageId });
+    // Find which customer database has this page
+    const superAdminDb = client!.db("leadrabbit_superadmin");
+    const customersCollection = superAdminDb.collection("customers");
+    const customers = await customersCollection.find({ verified: true }).toArray();
+
+    let customerDb = null;
+    let page = null;
+
+    // Search for the page in each customer database
+    for (const customer of customers) {
+      const testDb = client!.db(customer.dbName);
+      const metaPagesCollection = testDb.collection("meta_pages");
+      const foundPage = await metaPagesCollection.findOne({ pageId });
+      
+      if (foundPage) {
+        page = foundPage;
+        customerDb = testDb;
+        console.log(`✅ Found page in customer database: ${customer.dbName}`);
+        break;
+      }
+    }
     
     console.log(`🔍 Page lookup result:`, page ? `Found: ${page.name}, Active: ${page.isActive}` : "Not found");
     
-    if (!page) {
-      console.log(`⚠️ Skipping lead ${leadId} - Page ${pageId} not found in database`);
+    if (!page || !customerDb) {
+      console.log(`⚠️ Skipping lead ${leadId} - Page ${pageId} not found in any customer database`);
       console.log(`💡 Make sure to add this page instance via the "Add Instance" button in the connector settings`);
       return;
     }
@@ -253,8 +270,8 @@ async function processNewLead(
       return;
     }
 
-    const metaLeadsCollection = db.collection("meta_leads");
-    const crmLeadsCollection = db.collection("leads");
+    const metaLeadsCollection = customerDb.collection("meta_leads");
+    const crmLeadsCollection = customerDb.collection("leads");
 
     console.log(`✅ Page is active, processing lead...`);
 

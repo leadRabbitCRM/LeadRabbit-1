@@ -18,8 +18,14 @@ if (!uri) {
 
 // Environment-specific options for better cloud compatibility
 const isProduction = process.env.NODE_ENV === 'production';
+
+// Detect if using MongoDB Atlas (cloud) or local MongoDB
+const isMongoAtlas = uri && uri.includes('mongodb+srv://');
+const isLocalMongo = uri && (uri.includes('localhost') || uri.includes('127.0.0.1') || /mongodb:\/\/\d+\.\d+\.\d+\.\d+/.test(uri));
+
 const options: MongoClientOptions = {
-  tls: true,
+  // Only use TLS for MongoDB Atlas
+  tls: isMongoAtlas ? true : false,
   tlsAllowInvalidCertificates: false,
   tlsAllowInvalidHostnames: false,
   family: 4, // Prefer IPv4
@@ -29,7 +35,7 @@ const options: MongoClientOptions = {
   maxPoolSize: isProduction ? 15 : 5,
   minPoolSize: isProduction ? 2 : 1,
   maxIdleTimeMS: 30000,
-  retryWrites: true,
+  retryWrites: isMongoAtlas ? true : false, // Only retry writes on Atlas
   retryReads: true,
   heartbeatFrequencyMS: 10000,
 };

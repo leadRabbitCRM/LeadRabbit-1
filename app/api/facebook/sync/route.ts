@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 import { MetaLead, CRMLead } from "@/lib/models/MetaLead";
+import jwt from "jsonwebtoken";
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -16,11 +17,23 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Get customer database from JWT token
+    const token = req.cookies.get("appToken")?.value;
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const dbName = decoded.dbName;
+
+    if (!dbName) {
+      return NextResponse.json({ error: "Customer database not found" }, { status: 400 });
+    }
+
     const client = await clientPromise;
     if (!client) {
       return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
     }
-    const db = client!.db(process.env.DB_NAME);
+    const db = client!.db(dbName);
 
     const metaPagesCollection = db.collection("meta_pages");
     const metaLeadsCollection = db.collection("meta_leads");
