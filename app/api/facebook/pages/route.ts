@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
 
       if (subscribeData.success) {
         // Fetch and store lead forms for this page
-        await fetchAndStoreLeadForms(pageId, page.accessToken);
+        await fetchAndStoreLeadForms(pageId, page.accessToken, dbName);
 
         // Update page status
         await metaPagesCollection.updateOne(
@@ -151,6 +151,18 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    // Get customer database from JWT token
+    const token = req.cookies.get("appToken")?.value;
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const dbName = decoded.dbName;
+
+    if (!dbName) {
+      return NextResponse.json({ error: "Customer database not found" }, { status: 400 });
+    }
+
     const { pageId } = await req.json();
 
     if (!pageId) {
@@ -164,7 +176,7 @@ export async function DELETE(req: NextRequest) {
     if (!client) {
       return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
     }
-    const db = client!.db(process.env.DB_NAME);
+    const db = client!.db(dbName);
     const metaPagesCollection = db.collection("meta_pages");
 
     // Delete the page
@@ -187,7 +199,7 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
-async function fetchAndStoreLeadForms(pageId: string, accessToken: string) {
+async function fetchAndStoreLeadForms(pageId: string, accessToken: string, dbName: string) {
   try {
     // Fetch lead forms for the page
     const formsResponse = await fetch(
@@ -200,7 +212,7 @@ async function fetchAndStoreLeadForms(pageId: string, accessToken: string) {
       console.error("MongoDB client unavailable for lead forms fetch");
       return;
     }
-    const db = client!.db(process.env.DB_NAME);
+    const db = client!.db(dbName);
     const metaPagesCollection = db.collection("meta_pages");
 
     const leadForms =
