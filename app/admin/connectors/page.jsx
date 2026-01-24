@@ -573,19 +573,30 @@ export default function ConnectorsPage() {
 
                     {page.leadForms?.length > 0 && (
                       <div className="border-t border-gray-100 pt-2">
-                        <p className="text-xs sm:text-sm text-gray-600 mb-1">
-                          Active Lead Forms:
+                        <p className="text-xs sm:text-sm text-gray-600 mb-2">
+                          Active Lead Forms ({page.leadForms.length}):
                         </p>
-                        <div className="flex flex-wrap gap-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {page.leadForms.map((form) => (
-                            <Chip
+                            <div
                               key={form.formId}
-                              size="sm"
-                              variant="flat"
-                              className="text-xs sm:text-sm"
+                              className="bg-white rounded-lg p-2 border border-gray-200 hover:border-blue-300 transition-colors"
                             >
-                              {form.name} ({form.leads?.length || 0})
-                            </Chip>
+                              <p className="text-xs font-medium text-gray-900 truncate mb-1" title={form.name}>
+                                {form.name}
+                              </p>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-gray-500">Form ID: {form.formId.slice(0, 8)}...</span>
+                                <Chip
+                                  size="sm"
+                                  variant="flat"
+                                  color="primary"
+                                  className="text-[10px] h-5"
+                                >
+                                  {form.leads?.length || 0} leads
+                                </Chip>
+                              </div>
+                            </div>
                           ))}
                         </div>
                       </div>

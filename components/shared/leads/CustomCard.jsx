@@ -177,6 +177,25 @@ export default function CustomCard({
               </span>
             </div>
 
+            {lead.metaData?.formName && (
+              <div className="flex items-start gap-2 sm:gap-2.5">
+                <svg
+                  className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 mt-0.5 flex-shrink-0"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
+                    clipRule="evenodd"
+                  ></path>
+                </svg>
+                <span className="text-xs sm:text-sm text-gray-700 truncate flex-1" title={lead.metaData.formName}>
+                  {lead.metaData.formName}
+                </span>
+              </div>
+            )}
+
             {lead.project && (
               <div className="flex items-start gap-2 sm:gap-2.5">
                 <svg
