@@ -276,6 +276,12 @@ async function processNewLead(
 
     console.log(`✅ Page is active, processing lead...`);
 
+    // Find the form name from the page's lead forms
+    const formName = page.leadForms?.find((f: any) => f.formId === formId)?.formName || 
+                     page.leadForms?.find((f: any) => f.formId === formId)?.name || 
+                     "";
+    console.log(`📋 Form name: ${formName}`);
+
     // Fetch full lead data from Facebook API
     let fullFieldData = fieldData || [];
     if (!fieldData || fieldData.length === 0) {
@@ -296,6 +302,7 @@ async function processNewLead(
       created_time: new Date(),
       field_data: fullFieldData,
       form_id: formId,
+      form_name: formName,
       page_id: pageId,
       platform: "facebook",
       processed: false,
@@ -310,7 +317,7 @@ async function processNewLead(
     console.log(`💾 Stored Meta lead in database`);
 
     // Convert to CRM lead format
-    const crmLead = convertMetaLeadToCRM(metaLead);
+    const crmLead = convertMetaLeadToCRM(metaLead, formName);
     console.log(`🔄 CRM Lead conversion:`, crmLead ? "Success" : "Failed");
 
     if (crmLead) {
@@ -403,7 +410,7 @@ async function updateLeadFormCount(
   }
 }
 
-function convertMetaLeadToCRM(metaLead: MetaLead): CRMLead | null {
+function convertMetaLeadToCRM(metaLead: MetaLead, formName?: string): CRMLead | null {
   try {
     // Extract common fields from Meta lead data
     const fieldData = metaLead.field_data || [];
@@ -467,6 +474,7 @@ function convertMetaLeadToCRM(metaLead: MetaLead): CRMLead | null {
       metaData: {
         leadId: metaLead.leadId,
         formId: metaLead.form_id || "",
+        formName: formName || metaLead.form_name || "",
         pageId: metaLead.page_id || "",
         platform: metaLead.platform,
         originalFields: metaLead.field_data,

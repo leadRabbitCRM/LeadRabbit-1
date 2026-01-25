@@ -7,11 +7,12 @@ import {
   UserGroupIcon,
   LinkIcon,
 } from "@heroicons/react/24/solid";
-import { Chip, Switch, Tab, Tabs, useDisclosure } from "@heroui/react";
+import { Chip, Switch, Tab, Tabs, useDisclosure, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, DateRangePicker, Checkbox, addToast } from "@heroui/react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import CustomModal from "./components/CustomModal";
 import NinetyNineAcresModal from "./components/NinetyNineAcresModal";
+import { parseDate } from "@internationalized/date";
 
 export default function ConnectorsPage() {
   const [isFacebookEnabled, setIsFacebookEnabled] = useState(false);
@@ -33,6 +34,10 @@ export default function ConnectorsPage() {
   const [toggleAllAction, setToggleAllAction] = useState(null);
   const [ninetyNineAcresAccounts, setNinetyNineAcresAccounts] = useState([]);
   const { isOpen: is99AcresOpen, onOpen: on99AcresOpen, onOpenChange: on99AcresOpenChange } = useDisclosure();
+  const { isOpen: isSyncDateOpen, onOpen: onSyncDateOpen, onOpenChange: onSyncDateOpenChange } = useDisclosure();
+  const [syncPageId, setSyncPageId] = useState(null);
+  const [dateRange, setDateRange] = useState(null);
+  const [isAllTime, setIsAllTime] = useState(true);
 
   useEffect(() => {
     fetchFacebookPages();
@@ -141,26 +146,73 @@ export default function ConnectorsPage() {
     }
   };
 
+  const openSyncDateModal = (pageId) => {
+    setSyncPageId(pageId);
+    setDateRange(null);
+    setIsAllTime(true);
+    onSyncDateOpen();
+  };
+
   const syncMetaLeads = async () => {
     setIsLoading(true);
+    onSyncDateOpenChange(false);
+    
     try {
+      const payload = { pageId: syncPageId };
+      
+      // Add date range if not all time
+      if (!isAllTime && dateRange) {
+        payload.startDate = `${dateRange.start.year}-${String(dateRange.start.month).padStart(2, '0')}-${String(dateRange.start.day).padStart(2, '0')}`;
+        payload.endDate = `${dateRange.end.year}-${String(dateRange.end.month).padStart(2, '0')}-${String(dateRange.end.day).padStart(2, '0')}`;
+      }
+
       const response = await fetch("/api/facebook/sync", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
 
       if (result.success) {
         await fetchFacebookPages(); // Refresh data
-        alert(`Successfully synced ${result.leadsSynced} new leads!`);
+        
+        if (result.leadsSynced === 0) {
+          addToast({
+            title: "Sync Complete",
+            description: "No new leads found. All leads are already synced!",
+            type: "info",
+            duration: 5000,
+          });
+        } else {
+          addToast({
+            title: "Sync Successful",
+            description: `Successfully synced ${result.leadsSynced} new ${result.leadsSynced === 1 ? 'lead' : 'leads'}!`,
+            type: "success",
+            duration: 5000,
+          });
+        }
       } else {
-        alert("Error syncing leads: " + result.error);
+        addToast({
+          title: "Sync Failed",
+          description: result.error || "Failed to sync leads",
+          type: "error",
+          duration: 5000,
+        });
       }
     } catch (error) {
       console.error("Error syncing Meta leads:", error);
-      alert("Error syncing leads");
+      addToast({
+        title: "Sync Error",
+        description: "An unexpected error occurred while syncing leads",
+        type: "error",
+        duration: 5000,
+      });
     } finally {
       setIsLoading(false);
+      setSyncPageId(null);
     }
   };
 
@@ -175,13 +227,38 @@ export default function ConnectorsPage() {
 
       if (result.success) {
         await fetch99AcresAccounts();
-        alert(`Successfully synced ${result.leadsSynced} new leads from 99acres!`);
+        
+        if (result.leadsSynced === 0) {
+          addToast({
+            title: "Sync Complete",
+            description: "No new leads found from 99acres. All leads are already synced!",
+            type: "info",
+            duration: 5000,
+          });
+        } else {
+          addToast({
+            title: "Sync Successful",
+            description: `Successfully synced ${result.leadsSynced} new ${result.leadsSynced === 1 ? 'lead' : 'leads'} from 99acres!`,
+            type: "success",
+            duration: 5000,
+          });
+        }
       } else {
-        alert("Error syncing 99acres leads: " + result.error);
+        addToast({
+          title: "Sync Failed",
+          description: result.error || "Failed to sync 99acres leads",
+          type: "error",
+          duration: 5000,
+        });
       }
     } catch (error) {
       console.error("Error syncing 99acres leads:", error);
-      alert("Error syncing 99acres leads");
+      addToast({
+        title: "Sync Error",
+        description: "An unexpected error occurred while syncing 99acres leads",
+        type: "error",
+        duration: 5000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -535,7 +612,7 @@ export default function ConnectorsPage() {
                           size="sm"
                           radius="md"
                           className="text-xs sm:text-sm px-2.5 py-1 h-7 sm:h-8"
-                          onClick={syncMetaLeads}
+                          onClick={() => openSyncDateModal(page.pageId)}
                           isDisabled={isLoading}
                         >
                           Sync
@@ -1080,6 +1157,82 @@ export default function ConnectorsPage() {
         confirmText={toggleAllAction === "enable" ? "Enable All" : "Disable All"}
         confirmColor={toggleAllAction === "enable" ? "success" : "warning"}
       />
+
+      {/* Sync Date Range Modal */}
+      <Modal 
+        isOpen={isSyncDateOpen} 
+        onOpenChange={onSyncDateOpenChange}
+        size="lg"
+        backdrop="blur"
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <h3 className="text-xl font-semibold">Select Sync Date Range</h3>
+                <p className="text-sm text-gray-500 font-normal">
+                  Choose the date range for syncing leads from Facebook
+                </p>
+              </ModalHeader>
+              <ModalBody>
+                <div className="space-y-4">
+                  <Checkbox
+                    isSelected={isAllTime}
+                    onValueChange={(checked) => {
+                      setIsAllTime(checked);
+                      if (checked) {
+                        setDateRange(null);
+                      }
+                    }}
+                  >
+                    <span className="text-sm font-medium">All Time</span>
+                    <span className="text-xs text-gray-500 block">
+                      Sync all available leads regardless of date
+                    </span>
+                  </Checkbox>
+
+                  {!isAllTime && (
+                    <div className="pt-2">
+                      <DateRangePicker
+                        label="Date Range"
+                        labelPlacement="outside"
+                        value={dateRange}
+                        onChange={setDateRange}
+                        className="w-full"
+                        variant="bordered"
+                        description="Select the start and end date for syncing leads"
+                      />
+                    </div>
+                  )}
+
+                  {!isAllTime && !dateRange && (
+                    <p className="text-sm text-warning-500">
+                      Please select a date range or enable "All Time"
+                    </p>
+                  )}
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button 
+                  color="danger" 
+                  variant="light" 
+                  onPress={onClose}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  color="primary" 
+                  onPress={syncMetaLeads}
+                  isDisabled={!isAllTime && !dateRange}
+                  isLoading={isLoading}
+                >
+                  Sync Leads
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
 }

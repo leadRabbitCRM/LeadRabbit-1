@@ -29,6 +29,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Customer database not found" }, { status: 400 });
     }
 
+    // Get optional pageId from request body
+    const body = await req.json().catch(() => ({}));
+    const { pageId, startDate, endDate } = body;
+
     const client = await clientPromise;
     if (!client) {
       return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
@@ -39,9 +43,15 @@ export async function POST(req: NextRequest) {
     const metaLeadsCollection = db.collection("meta_leads");
     const crmLeadsCollection = db.collection("leads");
 
-    // Get all active Meta pages
+    // Build query - if pageId provided, sync only that page, otherwise sync all active pages
+    const query: any = { isActive: true };
+    if (pageId) {
+      query.pageId = pageId;
+    }
+
+    // Get Meta pages to sync
     const activePages = await metaPagesCollection
-      .find({ isActive: true })
+      .find(query)
       .toArray();
 
     let totalLeadsSynced = 0;
@@ -51,10 +61,19 @@ export async function POST(req: NextRequest) {
 
       for (const form of page.leadForms || []) {
         try {
+          // Build Facebook API URL with optional date filtering
+          let apiUrl = `https://graph.facebook.com/v18.0/${form.formId}/leads?access_token=${page.accessToken}`;
+          
+          // Add date filtering if provided
+          if (startDate && endDate) {
+            // Convert dates to Unix timestamps (Facebook API uses seconds)
+            const startTimestamp = Math.floor(new Date(startDate).getTime() / 1000);
+            const endTimestamp = Math.floor(new Date(endDate).getTime() / 1000);
+            apiUrl += `&filtering=[{"field":"time_created","operator":"GREATER_THAN","value":${startTimestamp}},{"field":"time_created","operator":"LESS_THAN","value":${endTimestamp}}]`;
+          }
+
           // Fetch leads from Facebook API
-          const leadsResponse = await fetch(
-            `https://graph.facebook.com/v18.0/${form.formId}/leads?access_token=${page.accessToken}`,
-          );
+          const leadsResponse = await fetch(apiUrl);
 
           const leadsData = await leadsResponse.json();
 
@@ -75,6 +94,7 @@ export async function POST(req: NextRequest) {
               created_time: new Date(lead.created_time),
               field_data: lead.field_data || [],
               form_id: form.formId,
+              form_name: form.formName || form.name || "",
               page_id: page.pageId,
               platform: "facebook",
               processed: false,
@@ -88,7 +108,7 @@ export async function POST(req: NextRequest) {
             );
 
             // Convert to CRM lead
-            const crmLead = convertMetaLeadToCRM(metaLead);
+            const crmLead = convertMetaLeadToCRM(metaLead, form.formName || form.name);
 
             if (crmLead) {
               const existingLead = await crmLeadsCollection.findOne({
@@ -146,7 +166,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function convertMetaLeadToCRM(metaLead: MetaLead): CRMLead | null {
+function convertMetaLeadToCRM(metaLead: MetaLead, formName?: string): CRMLead | null {
   try {
     const fieldData = metaLead.field_data || [];
 
@@ -201,6 +221,7 @@ function convertMetaLeadToCRM(metaLead: MetaLead): CRMLead | null {
       metaData: {
         leadId: metaLead.leadId,
         formId: metaLead.form_id || "",
+        formName: formName || metaLead.form_name || "",
         pageId: metaLead.page_id || "",
         platform: metaLead.platform,
         originalFields: metaLead.field_data,

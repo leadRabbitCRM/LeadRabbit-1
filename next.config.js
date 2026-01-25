@@ -24,6 +24,10 @@ const nextConfig = {
     // ✅ Ignore ESLint errors during `next build`
     ignoreDuringBuilds: true,
   },
+  // Enable experimental instrumentation for immediate server startup hooks
+  experimental: {
+    instrumentationHook: true,
+  },
   // Performance optimizations
   compress: true,
   poweredByHeader: false,

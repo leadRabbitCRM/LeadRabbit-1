@@ -9,6 +9,7 @@ export interface MetaLead {
   created_time: Date | string;
   field_data: MetaLeadField[];
   form_id?: string;
+  form_name?: string;
   page_id?: string;
   platform: "facebook" | "instagram";
   processed: boolean;
@@ -58,6 +59,7 @@ export interface CRMLead {
   metaData?: {
     leadId: string;
     formId: string;
+    formName?: string;
     pageId: string;
     platform: "facebook" | "instagram";
     originalFields: MetaLeadField[];

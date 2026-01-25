@@ -83,16 +83,21 @@ async function resolveAuthenticatedUser(req: NextRequest) {
   }
 
   const email = decoded?.email;
+  const dbName = (decoded as any)?.dbName;
 
   if (!email) {
     return { status: 400, error: "Invalid token payload" } as const;
+  }
+
+  if (!dbName) {
+    return { status: 400, error: "Customer database not found in token" } as const;
   }
 
   const client = await clientPromise;
   if (!client) {
     return { status: 503, error: "Database unavailable" } as const;
   }
-  const db = client!.db(process.env.DB_NAME);
+  const db = client!.db(dbName);
   const usersCollection = db.collection("users");
 
   const userDoc = await usersCollection.findOne({ email });
