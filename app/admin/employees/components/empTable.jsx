@@ -38,6 +38,8 @@ import {
   UserIcon,
   PencilIcon,
   TrashIcon,
+  KeyIcon,
+  ShieldExclamationIcon,
 } from "@heroicons/react/24/solid";
 import CustomModal from "./CustomModal";
 import EmployeeEditModal from "./EmployeeEditModal";
@@ -232,18 +234,16 @@ export default function EmpTable() {
     setIsHydrated(true);
   }, []);
 
-  // Fetch current logged-in user's email
+  // Fetch current logged-in user's email (for self-delete prevention)
   React.useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
-        const response = await fetch("/api/me", { cache: "no-store" });
-        if (response.ok) {
-          const data = await response.json();
-          console.log("Current logged-in user email:", data.email);
-          setCurrentUserEmail(data.email);
-        }
+        const response = await axios.get("me");
+        const email = response.data?.email;
+        console.log("✅ Current logged-in user email fetched:", email);
+        setCurrentUserEmail(email);
       } catch (error) {
-        console.error("Error fetching current user", error);
+        console.error("❌ Error fetching current user:", error);
       }
     };
     fetchCurrentUser();
@@ -552,6 +552,99 @@ export default function EmpTable() {
     }
   }, [deleteTarget, onDeleteModalOpenChange]);
 
+  const handleResetPassword = React.useCallback(
+    (user) => {
+      if (!user?.id) return;
+      setConfirmAction({
+        type: "resetPassword",
+        user: user,
+        title: "Reset Password",
+        message: `Are you sure you want to reset the password for ${user.name}? They will need to set a new password on their next login.`,
+        confirmText: "Reset Password",
+        action: () => performResetPassword(user.id),
+      });
+      onConfirmModalOpen();
+    },
+    [onConfirmModalOpen],
+  );
+
+  const performResetPassword = React.useCallback(
+    async (userId) => {
+      setIsVerifying(true);
+      try {
+        const response = await axios.put(`admin/employees/${userId}`, {
+          action: "resetPassword",
+        });
+
+        addToast({
+          title: "✅ Password Reset",
+          description: `Password has been reset. Temporary password: ${response.data.tempPassword}`,
+          color: "success",
+        });
+      } catch (error) {
+        console.error("Failed to reset password", error);
+        const message =
+          error?.response?.data?.error ?? "Unable to reset password.";
+        addToast({
+          title: "Reset failed",
+          description: message,
+          color: "danger",
+        });
+      } finally {
+        setIsVerifying(false);
+        setConfirmAction(null);
+        onConfirmModalOpenChange(false);
+      }
+    },
+    [onConfirmModalOpenChange, addToast],
+  );
+
+  const handleResetMfa = React.useCallback(
+    (user) => {
+      if (!user?.id) return;
+      setConfirmAction({
+        type: "resetMfa",
+        user: user,
+        title: "Reset MFA",
+        message: `Are you sure you want to reset MFA (Two-Factor Authentication) for ${user.name}? They will need to set up MFA again on their next login.`,
+        confirmText: "Reset MFA",
+        action: () => performResetMfa(user.id),
+      });
+      onConfirmModalOpen();
+    },
+    [onConfirmModalOpen],
+  );
+
+  const performResetMfa = React.useCallback(
+    async (userId) => {
+      setIsVerifying(true);
+      try {
+        await axios.put(`admin/employees/${userId}`, {
+          action: "resetMfa",
+        });
+
+        addToast({
+          title: "✅ MFA Reset",
+          description: "MFA has been reset successfully.",
+          color: "success",
+        });
+      } catch (error) {
+        console.error("Failed to reset MFA", error);
+        const message = error?.response?.data?.error ?? "Unable to reset MFA.";
+        addToast({
+          title: "Reset failed",
+          description: message,
+          color: "danger",
+        });
+      } finally {
+        setIsVerifying(false);
+        setConfirmAction(null);
+        onConfirmModalOpenChange(false);
+      }
+    },
+    [onConfirmModalOpenChange, addToast],
+  );
+
   const hasSearchFilter = Boolean(filterValue);
 
   const headerColumns = React.useMemo(() => {
@@ -723,17 +816,32 @@ export default function EmpTable() {
                   >
                     Update Profile
                   </DropdownItem>
-                  {currentUserEmail && user.email !== currentUserEmail && (
-                    <DropdownItem
-                      key="delete"
-                      className="text-danger"
-                      color="danger"
-                      startContent={<TrashIcon className="w-4 h-4" />}
-                      onPress={() => handleOpenDelete(user)}
-                    >
-                      Delete Employee
-                    </DropdownItem>
-                  )}
+                  <DropdownItem
+                    key="resetPassword"
+                    onPress={() => handleResetPassword(user)}
+                    startContent={<KeyIcon className="w-4 h-4" />}
+                    color="warning"
+                  >
+                    Reset Password
+                  </DropdownItem>
+                  <DropdownItem
+                    key="resetMfa"
+                    onPress={() => handleResetMfa(user)}
+                    startContent={<ShieldExclamationIcon className="w-4 h-4" />}
+                    color="warning"
+                  >
+                    Reset MFA
+                  </DropdownItem>
+                  <DropdownItem
+                    key="delete"
+                    className={user.email?.toLowerCase() === currentUserEmail?.toLowerCase() ? "text-gray-400" : "text-danger"}
+                    color={user.email?.toLowerCase() === currentUserEmail?.toLowerCase() ? "default" : "danger"}
+                    startContent={<TrashIcon className="w-4 h-4" />}
+                    onPress={() => handleOpenDelete(user)}
+                    isDisabled={user.email?.toLowerCase() === currentUserEmail?.toLowerCase()}
+                  >
+                    {user.email?.toLowerCase() === currentUserEmail?.toLowerCase() ? "Delete Employee (You)" : "Delete Employee"}
+                  </DropdownItem>
                 </DropdownMenu>
               </Dropdown>
             </div>
@@ -742,7 +850,7 @@ export default function EmpTable() {
           return cellValue;
       }
     },
-    [handleViewProfile, handleOpenEdit, handleOpenDelete, handleVerifyEmployee],
+    [handleViewProfile, handleOpenEdit, handleOpenDelete, handleVerifyEmployee, handleResetPassword, handleResetMfa, currentUserEmail],
   );
 
   const onNextPage = React.useCallback(() => {
@@ -1136,17 +1244,32 @@ export default function EmpTable() {
                       >
                         Update Profile
                       </DropdownItem>
-                      {currentUserEmail && user.email !== currentUserEmail && (
-                        <DropdownItem
-                          key="delete"
-                          className="text-danger"
-                          color="danger"
-                          startContent={<TrashIcon className="w-4 h-4" />}
-                          onPress={() => handleOpenDelete(user)}
-                        >
-                          Delete Employee
-                        </DropdownItem>
-                      )}
+                      <DropdownItem
+                        key="resetPassword"
+                        onPress={() => handleResetPassword(user)}
+                        startContent={<KeyIcon className="w-4 h-4" />}
+                        color="warning"
+                      >
+                        Reset Password
+                      </DropdownItem>
+                      <DropdownItem
+                        key="resetMfa"
+                        onPress={() => handleResetMfa(user)}
+                        startContent={<ShieldExclamationIcon className="w-4 h-4" />}
+                        color="warning"
+                      >
+                        Reset MFA
+                      </DropdownItem>
+                      <DropdownItem
+                        key="delete"
+                        className={user.email?.toLowerCase() === currentUserEmail?.toLowerCase() ? "text-gray-400" : "text-danger"}
+                        color={user.email?.toLowerCase() === currentUserEmail?.toLowerCase() ? "default" : "danger"}
+                        startContent={<TrashIcon className="w-4 h-4" />}
+                        onPress={() => handleOpenDelete(user)}
+                        isDisabled={user.email?.toLowerCase() === currentUserEmail?.toLowerCase()}
+                      >
+                        {user.email?.toLowerCase() === currentUserEmail?.toLowerCase() ? "Delete Employee (You)" : "Delete Employee"}
+                      </DropdownItem>
                     </DropdownMenu>
                   </Dropdown>
                 </div>
@@ -1340,6 +1463,12 @@ export default function EmpTable() {
                 {confirmAction?.type === "delete" && (
                   <TrashIcon className="w-5 h-5 text-danger" />
                 )}
+                {confirmAction?.type === "resetPassword" && (
+                  <KeyIcon className="w-5 h-5 text-warning" />
+                )}
+                {confirmAction?.type === "resetMfa" && (
+                  <ShieldExclamationIcon className="w-5 h-5 text-warning" />
+                )}
                 {confirmAction?.type === "view" && (
                   <UserIcon className="w-5 h-5 text-default-500" />
                 )}
@@ -1354,6 +1483,20 @@ export default function EmpTable() {
                     <p className="text-xs text-danger-600 font-medium">
                       ⚠️ Warning: This action is irreversible and will
                       permanently remove all employee data.
+                    </p>
+                  </div>
+                )}
+                {confirmAction?.type === "resetPassword" && (
+                  <div className="mt-3 p-3 bg-warning-50 rounded-lg border border-warning-200">
+                    <p className="text-xs text-warning-600 font-medium">
+                      ⚠️ The user will need to reset their password on next login.
+                    </p>
+                  </div>
+                )}
+                {confirmAction?.type === "resetMfa" && (
+                  <div className="mt-3 p-3 bg-warning-50 rounded-lg border border-warning-200">
+                    <p className="text-xs text-warning-600 font-medium">
+                      ⚠️ The user will need to set up MFA again on next login.
                     </p>
                   </div>
                 )}
@@ -1376,7 +1519,11 @@ export default function EmpTable() {
                         ? "warning"
                         : confirmAction?.type === "verify"
                           ? "success"
-                          : "primary"
+                          : confirmAction?.type === "resetPassword"
+                            ? "warning"
+                            : confirmAction?.type === "resetMfa"
+                              ? "warning"
+                              : "primary"
                   }
                   onPress={() => {
                     if (confirmAction?.action) {

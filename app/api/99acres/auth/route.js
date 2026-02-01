@@ -1,8 +1,36 @@
 import { NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
+import jwt from "jsonwebtoken";
 
 export async function POST(request) {
   try {
+    // Get customer database from JWT token
+    const token = request.cookies.get("appToken")?.value;
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return NextResponse.json(
+        { success: false, error: "Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    const dbName = decoded.dbName;
+    if (!dbName) {
+      return NextResponse.json(
+        { success: false, error: "Customer database not found" },
+        { status: 400 }
+      );
+    }
+
     const { username, password } = await request.json();
 
     if (!username || !password) {
@@ -13,7 +41,7 @@ export async function POST(request) {
     }
 
     const client = await clientPromise;
-    const db = client.db("leadrabbit");
+    const db = client.db(dbName);
 
     // Test the credentials by making a test API call
     const testXml = `<?xml version='1.0'?><query><user_name>${username}</user_name><pswd>${password}</pswd><start_date>${new Date(Date.now() - 86400000).toISOString().slice(0, 19).replace('T', ' ')}</start_date><end_date>${new Date().toISOString().slice(0, 19).replace('T', ' ')}</end_date></query>`;
@@ -29,8 +57,8 @@ export async function POST(request) {
 
     const xmlText = await response.text();
     
-    // Check if authentication failed
-    if (xmlText.includes('ActionStatus = "false"') || xmlText.includes("authentication does not succeed")) {
+    // Check if authentication failed (ActionStatus without spaces)
+    if (xmlText.includes('ActionStatus="false"') || xmlText.includes("authentication does not succeed") || xmlText.includes("Incorrect Username/Password")) {
       return NextResponse.json(
         { success: false, error: "Invalid credentials" },
         { status: 401 }

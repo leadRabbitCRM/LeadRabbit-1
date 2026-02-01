@@ -21,16 +21,34 @@ export default function UserDashboard() {
   const [filters, setFilters] = useState({});
   const [userProfile, setUserProfile] = useState(null);
 
-  // Load favorites from localStorage
+  // Load favorites from database
   useEffect(() => {
-    const storedFavorites = localStorage.getItem("leadRabbit_favorites");
-    if (storedFavorites) {
+    const loadFavorites = async () => {
       try {
-        setFavorites(JSON.parse(storedFavorites));
+        const response = await axios.get("leads/favorites");
+        const loadedFavorites = response.data?.favorites || [];
+        setFavorites(loadedFavorites);
       } catch (error) {
-        console.error("Error parsing favorites:", error);
+        console.error("Error loading favorites:", error);
       }
-    }
+    };
+
+    loadFavorites();
+
+    // Listen for visibility change to reload when returning to tab
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        loadFavorites();
+      }
+    });
+
+    return () => {
+      document.removeEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          loadFavorites();
+        }
+      });
+    };
   }, []);
 
   // Fetch user profile
@@ -159,13 +177,23 @@ export default function UserDashboard() {
   // Toggle favorite
   const handleToggleFavorite = useCallback((leadId) => {
     setFavorites((prevFavorites) => {
-      const newFavorites = prevFavorites.includes(leadId)
+      const isFavorite = prevFavorites.includes(leadId);
+      const action = isFavorite ? "remove" : "add";
+      
+      // Call API to update database
+      axios.post("leads/favorites", { leadId, action })
+        .then((response) => {
+          const updatedFavorites = response.data?.favorites || [];
+          setFavorites(updatedFavorites);
+        })
+        .catch((error) => {
+          console.error("Error updating favorites:", error);
+        });
+
+      // Optimistic update for UI
+      const newFavorites = isFavorite
         ? prevFavorites.filter((id) => id !== leadId)
         : [...prevFavorites, leadId];
-      localStorage.setItem(
-        "leadRabbit_favorites",
-        JSON.stringify(newFavorites),
-      );
       return newFavorites;
     });
   }, []);

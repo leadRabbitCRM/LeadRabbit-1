@@ -35,9 +35,18 @@ export default function ConnectorsPage() {
   const [ninetyNineAcresAccounts, setNinetyNineAcresAccounts] = useState([]);
   const { isOpen: is99AcresOpen, onOpen: on99AcresOpen, onOpenChange: on99AcresOpenChange } = useDisclosure();
   const { isOpen: isSyncDateOpen, onOpen: onSyncDateOpen, onOpenChange: onSyncDateOpenChange } = useDisclosure();
+  const { isOpen: isSyncProgressOpen, onOpen: onSyncProgressOpen, onOpenChange: onSyncProgressOpenChange } = useDisclosure();
   const [syncPageId, setSyncPageId] = useState(null);
   const [dateRange, setDateRange] = useState(null);
   const [isAllTime, setIsAllTime] = useState(true);
+  const [dateRangeError, setDateRangeError] = useState(null);
+  const [syncProgress, setSyncProgress] = useState({
+    isActive: false,
+    leadsCount: 0,
+    currentLead: null,
+    status: "Starting sync...",
+    integrationName: "",
+  });
 
   useEffect(() => {
     fetchFacebookPages();
@@ -72,7 +81,7 @@ export default function ConnectorsPage() {
       // Count total leads from ALL pages (both enabled and disabled)
       const totalLeads = pages.reduce((total, page) => {
         const pageLeads = page.leadForms?.reduce(
-          (sum, form) => sum + (form.leads?.length || 0),
+          (sum, form) => sum + (typeof form.leads === 'number' ? form.leads : (form.leads?.length || 0)),
           0,
         ) || 0;
         return total + pageLeads;
@@ -150,12 +159,39 @@ export default function ConnectorsPage() {
     setSyncPageId(pageId);
     setDateRange(null);
     setIsAllTime(true);
+    setDateRangeError(null);
     onSyncDateOpen();
   };
 
   const syncMetaLeads = async () => {
     setIsLoading(true);
     onSyncDateOpenChange(false);
+    
+    // Show sync progress modal
+    setSyncProgress({
+      isActive: true,
+      leadsCount: 0,
+      currentLead: null,
+      status: "Connecting to Meta API...",
+      integrationName: "Meta/Facebook",
+    });
+    onSyncProgressOpen();
+    
+    // Start polling lead count every 2 seconds
+    const pollInterval = setInterval(async () => {
+      try {
+        const countResponse = await fetch("/api/facebook/count");
+        const countData = await countResponse.json();
+        if (countData.success) {
+          setSyncProgress(prev => ({
+            ...prev,
+            leadsCount: countData.count,
+          }));
+        }
+      } catch (error) {
+        console.error("Error polling lead count:", error);
+      }
+    }, 2000);
     
     try {
       const payload = { pageId: syncPageId };
@@ -165,6 +201,11 @@ export default function ConnectorsPage() {
         payload.startDate = `${dateRange.start.year}-${String(dateRange.start.month).padStart(2, '0')}-${String(dateRange.start.day).padStart(2, '0')}`;
         payload.endDate = `${dateRange.end.year}-${String(dateRange.end.month).padStart(2, '0')}-${String(dateRange.end.day).padStart(2, '0')}`;
       }
+
+      setSyncProgress(prev => ({
+        ...prev,
+        status: "Fetching leads from Meta...",
+      }));
 
       const response = await fetch("/api/facebook/sync", {
         method: "POST",
@@ -177,6 +218,13 @@ export default function ConnectorsPage() {
       const result = await response.json();
 
       if (result.success) {
+        setSyncProgress(prev => ({
+          ...prev,
+          leadsCount: result.leadsSynced || 0,
+          status: result.leadsSynced === 0 ? "No new leads found" : "Sync completed successfully!",
+          currentLead: null,
+        }));
+
         await fetchFacebookPages(); // Refresh data
         
         if (result.leadsSynced === 0) {
@@ -195,6 +243,12 @@ export default function ConnectorsPage() {
           });
         }
       } else {
+        setSyncProgress(prev => ({
+          ...prev,
+          status: "Sync failed",
+          currentLead: result.error || "Unknown error",
+        }));
+        
         addToast({
           title: "Sync Failed",
           description: result.error || "Failed to sync leads",
@@ -203,32 +257,142 @@ export default function ConnectorsPage() {
         });
       }
     } catch (error) {
+      setSyncProgress(prev => ({
+        ...prev,
+        status: "Sync error",
+        currentLead: error.message,
+      }));
+      
       console.error("Error syncing Meta leads:", error);
       addToast({
         title: "Sync Error",
-        description: "An unexpected error occurred while syncing leads",
+        description: error.message || "An unexpected error occurred while syncing leads",
         type: "error",
         duration: 5000,
       });
     } finally {
       setIsLoading(false);
       setSyncPageId(null);
+      clearInterval(pollInterval);
+      // Keep modal open for 2 seconds after completion
+      setTimeout(() => {
+        onSyncProgressOpenChange(false);
+        setSyncProgress(prev => ({ ...prev, isActive: false }));
+      }, 2000);
+    }
+  };
+
+  const openSync99AcresDatePicker = () => {
+    setSyncPageId(null); // Use null to indicate 99acres sync
+    setDateRange(null);
+    setIsAllTime(false); // 99acres requires a date range, so set to false
+    setDateRangeError(null);
+    onSyncDateOpen();
+  };
+
+  const handleDateRangeChange = (newRange) => {
+    setDateRange(newRange);
+    
+    // Only validate for 99acres (when syncPageId is null)
+    if (syncPageId === null && newRange && newRange.start && newRange.end) {
+      // Calculate difference in days
+      // HeroUI DateRangePicker uses 1-based months, so month - 1 for Date constructor
+      const startDate = new Date(newRange.start.year, newRange.start.month - 1, newRange.start.day);
+      const endDate = new Date(newRange.end.year, newRange.end.month - 1, newRange.end.day);
+      const diffTime = Math.abs(endDate - startDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      console.log("Date range validation:", {
+        selected: { start: newRange.start, end: newRange.end },
+        parsedStart: startDate.toISOString().split('T')[0],
+        parsedEnd: endDate.toISOString().split('T')[0],
+        diffDays
+      });
+      
+      if (diffDays !== 2) {
+        setDateRangeError(`Exactly 2 days required for 99acres sync. You selected ${diffDays} days.`);
+      } else {
+        setDateRangeError(null);
+      }
     }
   };
 
   const sync99AcresLeads = async () => {
     setIsLoading(true);
+    onSyncDateOpenChange(false);
+    
+    // Show sync progress modal
+    setSyncProgress({
+      isActive: true,
+      leadsCount: 0,
+      currentLead: null,
+      status: "Connecting to 99acres API...",
+      integrationName: "99acres",
+    });
+    onSyncProgressOpen();
+    
+    // Start polling lead count every 2 seconds
+    const pollInterval = setInterval(async () => {
+      try {
+        const countResponse = await fetch("/api/99acres/count");
+        const countData = await countResponse.json();
+        if (countData.success) {
+          setSyncProgress(prev => ({
+            ...prev,
+            leadsCount: countData.count,
+          }));
+        }
+      } catch (error) {
+        console.error("Error polling lead count:", error);
+      }
+    }, 2000);
+    
     try {
+      const payload = {};
+      
+      // Add date range if not all time
+      if (!isAllTime && dateRange) {
+        // HeroUI DateRangePicker returns: { start: { year, month (1-12), day }, end: { year, month (1-12), day } }
+        const startDate = `${dateRange.start.year}-${String(dateRange.start.month).padStart(2, '0')}-${String(dateRange.start.day).padStart(2, '0')}`;
+        const endDate = `${dateRange.end.year}-${String(dateRange.end.month).padStart(2, '0')}-${String(dateRange.end.day).padStart(2, '0')}`;
+        
+        payload.startDate = startDate;
+        payload.endDate = endDate;
+        
+        console.log("99acres sync dates - Selected:", { 
+          start: dateRange.start, 
+          end: dateRange.end,
+          formattedStart: startDate,
+          formattedEnd: endDate
+        });
+      }
+
+      setSyncProgress(prev => ({
+        ...prev,
+        status: "Fetching leads from 99acres...",
+      }));
+
       const response = await fetch("/api/99acres/sync", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
 
       if (result.success) {
+        setSyncProgress(prev => ({
+          ...prev,
+          leadsCount: result.leadsProcessed || 0,
+          status: result.leadsProcessed === 0 ? "No new leads found" : "Sync completed successfully!",
+          currentLead: null,
+        }));
+
         await fetch99AcresAccounts();
         
-        if (result.leadsSynced === 0) {
+        if (result.leadsProcessed === 0) {
           addToast({
             title: "Sync Complete",
             description: "No new leads found from 99acres. All leads are already synced!",
@@ -238,20 +402,57 @@ export default function ConnectorsPage() {
         } else {
           addToast({
             title: "Sync Successful",
-            description: `Successfully synced ${result.leadsSynced} new ${result.leadsSynced === 1 ? 'lead' : 'leads'} from 99acres!`,
+            description: `Successfully synced ${result.leadsProcessed} new ${result.leadsProcessed === 1 ? 'lead' : 'leads'} from 99acres!`,
             type: "success",
             duration: 5000,
           });
         }
       } else {
-        addToast({
-          title: "Sync Failed",
-          description: result.error || "Failed to sync 99acres leads",
-          type: "error",
-          duration: 5000,
-        });
+        // Handle errors from the sync response
+        if (result.errors && result.errors.length > 0) {
+          const firstError = result.errors[0];
+          setSyncProgress(prev => ({
+            ...prev,
+            status: "Sync failed",
+            currentLead: `${firstError.account}: ${firstError.message}`,
+          }));
+
+          addToast({
+            title: "Sync Failed",
+            description: `${firstError.account}: ${firstError.message}`,
+            type: "error",
+            duration: 5000,
+          });
+          
+          // Log additional errors
+          if (result.errors.length > 1) {
+            console.warn(
+              "Additional 99acres sync errors:",
+              result.errors.slice(1)
+            );
+          }
+        } else {
+          setSyncProgress(prev => ({
+            ...prev,
+            status: "Sync failed",
+            currentLead: result.error || "Unknown error",
+          }));
+
+          addToast({
+            title: "Sync Failed",
+            description: result.error || "Failed to sync 99acres leads",
+            type: "error",
+            duration: 5000,
+          });
+        }
       }
     } catch (error) {
+      setSyncProgress(prev => ({
+        ...prev,
+        status: "Sync error",
+        currentLead: error.message,
+      }));
+
       console.error("Error syncing 99acres leads:", error);
       addToast({
         title: "Sync Error",
@@ -261,6 +462,12 @@ export default function ConnectorsPage() {
       });
     } finally {
       setIsLoading(false);
+      clearInterval(pollInterval);
+      // Keep modal open for 2 seconds after completion
+      setTimeout(() => {
+        onSyncProgressOpenChange(false);
+        setSyncProgress(prev => ({ ...prev, isActive: false }));
+      }, 2000);
     }
   };
 
@@ -600,7 +807,7 @@ export default function ConnectorsPage() {
                         className="text-xs sm:text-sm flex-shrink-0"
                       >
                         {page.leadForms?.reduce(
-                          (sum, form) => sum + (form.leads?.length || 0),
+                          (sum, form) => sum + (typeof form.leads === 'number' ? form.leads : (form.leads?.length || 0)),
                           0,
                         ) || 0}
                       </Chip>
@@ -670,7 +877,7 @@ export default function ConnectorsPage() {
                                   color="primary"
                                   className="text-[10px] h-5"
                                 >
-                                  {form.leads?.length || 0} leads
+                                  {typeof form.leads === 'number' ? form.leads : (form.leads?.length || 0)} leads
                                 </Chip>
                               </div>
                             </div>
@@ -733,7 +940,19 @@ export default function ConnectorsPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 items-center">
+                        <Chip
+                          color="default"
+                          startContent={<UserGroupIcon className="w-3 sm:w-3.5" />}
+                          variant="flat"
+                          size="md"
+                          className="text-xs sm:text-sm flex-shrink-0"
+                        >
+                          {page.leadForms?.reduce(
+                            (sum, form) => sum + (typeof form.leads === 'number' ? form.leads : (form.leads?.length || 0)),
+                            0,
+                          ) || 0}
+                        </Chip>
                         <Button
                           color="success"
                           variant="flat"
@@ -844,6 +1063,14 @@ export default function ConnectorsPage() {
                           </p>
                         </div>
                       </div>
+                      <Chip
+                        size="md"
+                        variant="flat"
+                        color="success"
+                        className="text-xs sm:text-sm flex-shrink-0"
+                      >
+                        {account.totalLeads || 0} leads
+                      </Chip>
                     </div>
                     <div className="flex gap-1 flex-wrap">
                       <Button
@@ -852,10 +1079,10 @@ export default function ConnectorsPage() {
                         size="sm"
                         radius="md"
                         className="text-xs sm:text-sm px-2.5 py-1 h-7 sm:h-8"
-                        onClick={sync99AcresLeads}
+                        onClick={openSync99AcresDatePicker}
                         isDisabled={isLoading}
                       >
-                        Sync
+                        Sync Now
                       </Button>
                       <Button
                         color="warning"
@@ -924,33 +1151,41 @@ export default function ConnectorsPage() {
                           <p className="text-xs sm:text-sm text-gray-500">Disabled</p>
                         </div>
                       </div>
-                      <div className="flex gap-1">
-                        <Button
-                          color="success"
-                          variant="flat"
-                          size="sm"
-                          radius="md"
-                          className="text-xs sm:text-sm px-2.5 py-1 h-7 sm:h-8"
-                          onClick={() => toggle99AcresAccount(account, "enable")}
-                          isDisabled={isLoading}
-                        >
-                          Enable
-                        </Button>
-                        <Button
-                          color="danger"
-                          variant="flat"
-                          size="sm"
-                          radius="md"
-                          className="text-xs sm:text-sm px-2.5 py-1 h-7 sm:h-8"
-                          onClick={() => {
-                            setInstanceToDelete(account);
-                            onDeleteOpen();
-                          }}
-                          isDisabled={isLoading}
-                        >
-                          Delete
-                        </Button>
-                      </div>
+                      <Chip
+                        size="md"
+                        variant="flat"
+                        color="default"
+                        className="text-xs sm:text-sm flex-shrink-0"
+                      >
+                        {account.totalLeads || 0} leads
+                      </Chip>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        color="success"
+                        variant="flat"
+                        size="sm"
+                        radius="md"
+                        className="text-xs sm:text-sm px-2.5 py-1 h-7 sm:h-8"
+                        onClick={() => toggle99AcresAccount(account, "enable")}
+                        isDisabled={isLoading}
+                      >
+                        Enable
+                      </Button>
+                      <Button
+                        color="danger"
+                        variant="flat"
+                        size="sm"
+                        radius="md"
+                        className="text-xs sm:text-sm px-2.5 py-1 h-7 sm:h-8"
+                        onClick={() => {
+                          setInstanceToDelete(account);
+                          onDeleteOpen();
+                        }}
+                        isDisabled={isLoading}
+                      >
+                        Delete
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -1171,45 +1406,60 @@ export default function ConnectorsPage() {
               <ModalHeader className="flex flex-col gap-1">
                 <h3 className="text-xl font-semibold">Select Sync Date Range</h3>
                 <p className="text-sm text-gray-500 font-normal">
-                  Choose the date range for syncing leads from Facebook
+                  Choose the date range for syncing leads from {syncPageId === null ? "99acres" : "Facebook"}
                 </p>
               </ModalHeader>
               <ModalBody>
                 <div className="space-y-4">
-                  <Checkbox
-                    isSelected={isAllTime}
-                    onValueChange={(checked) => {
-                      setIsAllTime(checked);
-                      if (checked) {
-                        setDateRange(null);
-                      }
-                    }}
-                  >
-                    <span className="text-sm font-medium">All Time</span>
-                    <span className="text-xs text-gray-500 block">
-                      Sync all available leads regardless of date
-                    </span>
-                  </Checkbox>
+                  {syncPageId !== null && (
+                    <Checkbox
+                      isSelected={isAllTime}
+                      onValueChange={(checked) => {
+                        setIsAllTime(checked);
+                        if (checked) {
+                          setDateRange(null);
+                        }
+                      }}
+                    >
+                      <span className="text-sm font-medium">All Time</span>
+                      <span className="text-xs text-gray-500 block">
+                        Sync all available leads regardless of date
+                      </span>
+                    </Checkbox>
+                  )}
 
-                  {!isAllTime && (
-                    <div className="pt-2">
-                      <DateRangePicker
-                        label="Date Range"
-                        labelPlacement="outside"
-                        value={dateRange}
-                        onChange={setDateRange}
-                        className="w-full"
-                        variant="bordered"
-                        description="Select the start and end date for syncing leads"
-                      />
+                  {syncPageId === null && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                        ℹ️ Date range is required for 99acres
+                      </p>
+                      <p className="text-xs text-blue-800 dark:text-blue-200 mt-1">
+                        Select exactly 2 days for syncing leads
+                      </p>
                     </div>
                   )}
 
-                  {!isAllTime && !dateRange && (
+                  {((syncPageId !== null && !isAllTime) || syncPageId === null) ? (
+                    <div className="pt-2">
+                      <DateRangePicker
+                        label={syncPageId === null ? "Date Range (Exactly 2 Days)" : "Date Range"}
+                        labelPlacement="outside"
+                        value={dateRange}
+                        onChange={handleDateRangeChange}
+                        className="w-full"
+                        variant="bordered"
+                        description={syncPageId === null ? "Select exactly 2 days for syncing 99acres leads" : "Select the start and end date for syncing leads"}
+                        isInvalid={!!dateRangeError}
+                        errorMessage={dateRangeError}
+                      />
+                    </div>
+                  ) : null}
+
+                  {((syncPageId !== null && !isAllTime) || syncPageId === null) && !dateRange ? (
                     <p className="text-sm text-warning-500">
-                      Please select a date range or enable "All Time"
+                      {syncPageId === null ? "Please select a 2-day date range" : "Please select a date range"}
                     </p>
-                  )}
+                  ) : null}
                 </div>
               </ModalBody>
               <ModalFooter>
@@ -1222,13 +1472,93 @@ export default function ConnectorsPage() {
                 </Button>
                 <Button 
                   color="primary" 
-                  onPress={syncMetaLeads}
-                  isDisabled={!isAllTime && !dateRange}
+                  onPress={syncPageId === null ? sync99AcresLeads : syncMetaLeads}
+                  isDisabled={(syncPageId === null) && (!isAllTime && (!dateRange || dateRangeError))}
                   isLoading={isLoading}
                 >
                   Sync Leads
                 </Button>
               </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* Sync Progress Modal */}
+      <Modal 
+        isOpen={isSyncProgressOpen} 
+        onOpenChange={onSyncProgressOpenChange}
+        size="md"
+        backdrop="blur"
+        isDismissable={false}
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <h3 className="text-xl font-semibold">Syncing Leads</h3>
+                <p className="text-sm text-gray-500 font-normal">
+                  {syncProgress.integrationName}
+                </p>
+              </ModalHeader>
+              <ModalBody>
+                <div className="space-y-4">
+                  {/* Status Message */}
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                      {syncProgress.status}
+                    </p>
+                  </div>
+
+                  {/* Leads Count */}
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Leads Synced:
+                      </span>
+                      <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+                        {syncProgress.leadsCount}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Current Lead */}
+                  {syncProgress.currentLead && (
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">
+                        Current:
+                      </p>
+                      <p className="text-sm text-gray-900 dark:text-gray-100 truncate">
+                        {syncProgress.currentLead}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Progress Indicator */}
+                  {syncProgress.isActive && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: "0s" }}></div>
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }}></div>
+                      </div>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Syncing in progress...
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </ModalBody>
+              {!syncProgress.isActive && (
+                <ModalFooter>
+                  <Button 
+                    color="primary" 
+                    onPress={onClose}
+                  >
+                    Done
+                  </Button>
+                </ModalFooter>
+              )}
             </>
           )}
         </ModalContent>

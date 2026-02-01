@@ -83,8 +83,8 @@ const Filter = forwardRef(
     const [dateRange, setDateRange] = useState(
       currentFilters.dateRange || null,
     );
-    const [sourcePlatform, setSourcePlatform] = useState(
-      currentFilters.sourcePlatform || "",
+    const [sourceFilter, setSourceFilter] = useState(
+      currentFilters.sourceFilter || "all",
     );
     const [assignedUserSearch, setAssignedUserSearch] = useState(
       currentFilters.assignedUserSearch || "",
@@ -152,15 +152,18 @@ const Filter = forwardRef(
       return phones.map((phone) => ({ key: phone, label: phone }));
     }, [leads]);
 
-    const platformOptions = useMemo(() => {
-      const platforms = leads
-        .map((lead) => lead.sourcePlatform)
-        .filter((platform) => platform && typeof platform === "string")
-        .filter((platform, index, arr) => arr.indexOf(platform) === index)
+    const sourceOptions = useMemo(() => {
+      const sources = leads
+        .map((lead) => lead.source)
+        .filter((source) => source && typeof source === "string")
+        .filter((source, index, arr) => arr.indexOf(source) === index)
         .sort();
       return [
-        { key: "all", label: "All Platforms" },
-        ...platforms.map((platform) => ({ key: platform, label: platform })),
+        { key: "all", label: "All Sources" },
+        ...sources.map((source) => ({ 
+          key: source, 
+          label: source.charAt(0).toUpperCase() + source.slice(1) 
+        })),
       ];
     }, [leads]);
 
@@ -204,7 +207,7 @@ const Filter = forwardRef(
         statusFilter,
         timeFilter,
         dateRange,
-        sourcePlatform,
+        sourceFilter,
         ...(isAdmin && { assignedUserSearch: assignedUserSearch.trim() }),
       };
 
@@ -223,7 +226,7 @@ const Filter = forwardRef(
       setStatusFilter("all");
       setTimeFilter("all");
       setDateRange(null);
-      setSourcePlatform("all");
+      setSourceFilter("all");
       if (isAdmin) {
         setAssignedUserSearch("");
       }
@@ -236,7 +239,7 @@ const Filter = forwardRef(
         statusFilter: "all",
         timeFilter: "all",
         dateRange: null,
-        sourcePlatform: "all",
+        sourceFilter: "all",
         ...(isAdmin && { assignedUserSearch: "" }),
         // Add a timestamp to force parent component re-evaluation
         _cleared: Date.now(),
@@ -258,7 +261,7 @@ const Filter = forwardRef(
         statusFilter !== "all" ||
         timeFilter !== "all" ||
         dateRange ||
-        (sourcePlatform && sourcePlatform !== "all");
+        (sourceFilter && sourceFilter !== "all");
 
       const adminFilters = isAdmin ? assignedUserSearch.trim() : false;
 
@@ -270,7 +273,7 @@ const Filter = forwardRef(
       statusFilter,
       timeFilter,
       dateRange,
-      sourcePlatform,
+      sourceFilter,
       assignedUserSearch,
       isAdmin,
     ]);
@@ -282,7 +285,7 @@ const Filter = forwardRef(
         phoneSearch.trim(),
         statusFilter !== "all",
         timeFilter !== "all",
-        sourcePlatform && sourcePlatform !== "all",
+        sourceFilter && sourceFilter !== "all",
         ...(isAdmin ? [assignedUserSearch.trim()] : []),
       ];
       return filters.filter(Boolean).length;
@@ -292,7 +295,7 @@ const Filter = forwardRef(
       phoneSearch,
       statusFilter,
       timeFilter,
-      sourcePlatform,
+      sourceFilter,
       assignedUserSearch,
       isAdmin,
     ]);
@@ -689,45 +692,39 @@ const Filter = forwardRef(
                           </Select>
                         </div>
 
-                        {/* Source Platform Filter */}
+                        {/* Lead Source Filter */}
                         <div>
                           <label className="block text-sm font-semibold text-gray-800 mb-2">
-                            🌐 Source Platform
+                            🔗 Lead Source
                           </label>
-                          <Autocomplete
-                            placeholder="Enter platform name..."
-                            className="w-full"
-                            inputValue={
-                              sourcePlatform === "all" ? "" : sourcePlatform
+                          <Select
+                            selectedKeys={[sourceFilter]}
+                            onSelectionChange={(keys) =>
+                              setSourceFilter(Array.from(keys)[0])
                             }
-                            onInputChange={(value) =>
-                              setSourcePlatform(value || "all")
-                            }
-                            allowsCustomValue
                             size="md"
                             variant="bordered"
                             radius="lg"
+                            placeholder="Select source"
                             classNames={{
-                              inputWrapper:
-                                "border-2 border-gray-200 hover:border-purple-400 focus-within:border-purple-500 h-12 bg-gray-50/50",
-                              input: "text-sm px-3 placeholder:text-gray-400",
+                              trigger:
+                                "border-2 border-gray-200 hover:border-purple-400 focus:border-purple-500 h-12 bg-gray-50/50",
+                              value: "text-sm px-3",
                             }}
-                            startContent={
-                              <GlobeAltIcon className="w-4 h-4 text-gray-400 ml-2" />
-                            }
                           >
-                            {platformOptions
-                              .filter((option) => option.key !== "all")
-                              .map((option) => (
-                                <AutocompleteItem
-                                  key={option.key}
-                                  className="text-sm py-3 px-3"
-                                >
-                                  {option.label}
-                                </AutocompleteItem>
-                              ))}
-                          </Autocomplete>
+                            {sourceOptions.map((option) => (
+                              <SelectItem
+                                key={option.key}
+                                value={option.key}
+                                className="text-sm py-3 px-3"
+                              >
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </Select>
                         </div>
+
+
 
                         {/* Custom Date Range */}
                         {timeFilter === "custom" && (
@@ -857,18 +854,7 @@ const Filter = forwardRef(
                               }
                             </Chip>
                           )}
-                          {sourcePlatform && sourcePlatform !== "all" && (
-                            <Chip
-                              color="success"
-                              size="md"
-                              variant="flat"
-                              radius="md"
-                              onClose={() => setSourcePlatform("all")}
-                              className="text-xs font-semibold px-3 py-1"
-                            >
-                              🌐 {sourcePlatform}
-                            </Chip>
-                          )}
+
                           {isAdmin && assignedUserSearch.trim() && (
                             <Chip
                               color="default"

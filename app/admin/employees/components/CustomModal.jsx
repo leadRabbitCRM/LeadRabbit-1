@@ -21,76 +21,34 @@ export const role = [
 ];
 
 export default function CustomModal({ isOpen, onOpenChange, onUserAdded }) {
+  const DEFAULT_PASSWORD = "LeadRabbit@123";
+  
   const [formData, setFormData] = useState({
     name: "",
     role: "",
     status: "inActive",
     email: "",
-    password: "",
-    confirmPassword: "",
   });
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [confirmError, setConfirmError] = useState("");
-
-  const passwordChecks = {
-    length: formData.password.length >= 8,
-    upper: /[A-Z]/.test(formData.password),
-    lower: /[a-z]/.test(formData.password),
-    number: /[0-9]/.test(formData.password),
-    special: /[!@#$%^&*(),.?":{}|<>]/.test(formData.password),
-  };
-
-  const allValid = Object.values(passwordChecks).every(Boolean);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-
-    if (name === "confirmPassword") {
-      setConfirmError(
-        value !== formData.password ? "Passwords do not match." : "",
-      );
-    }
   };
 
   // Check if form is valid
   const isFormValid =
     formData.name &&
     formData.role &&
-    formData.email &&
-    formData.password &&
-    formData.confirmPassword &&
-    allValid &&
-    formData.password === formData.confirmPassword;
+    formData.email;
 
   const handleSubmit = async (e) => {
     if (e && typeof e.preventDefault === "function") {
       e.preventDefault();
     }
     setMessage("");
-    setConfirmError("");
-
-    if (!allValid) {
-      setMessage("❌ Please ensure your password meets all requirements.");
-      addToast({
-        title: "Invalid Password",
-        description: "Please check your password requirements.",
-        color: "danger",
-      });
-      return;
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      setConfirmError("Passwords do not match.");
-      addToast({
-        title: "Password Mismatch",
-        description: "Your passwords do not match.",
-        color: "danger",
-      });
-      return;
-    }
 
     setLoading(true);
     try {
@@ -104,7 +62,7 @@ export default function CustomModal({ isOpen, onOpenChange, onUserAdded }) {
           role: formData.role,
           status: formData.status,
           email: formData.email,
-          password: formData.password,
+          password: DEFAULT_PASSWORD,
         }),
       });
 
@@ -128,8 +86,6 @@ export default function CustomModal({ isOpen, onOpenChange, onUserAdded }) {
           role: "",
           status: "inActive",
           email: "",
-          password: "",
-          confirmPassword: "",
         });
 
         // Call the refresh callback
@@ -160,19 +116,6 @@ export default function CustomModal({ isOpen, onOpenChange, onUserAdded }) {
     }
   };
 
-  const checkItem = (label, valid) => (
-    <div className="flex items-center gap-2 text-xs">
-      <span
-        className={`w-2 h-2 rounded-full ${
-          valid ? "bg-green-500" : "bg-red-500"
-        }`}
-      ></span>
-      <span className={`${valid ? "text-green-600" : "text-red-600"}`}>
-        {label}
-      </span>
-    </div>
-  );
-
   return (
     <Modal
       backdrop="opaque"
@@ -196,6 +139,15 @@ export default function CustomModal({ isOpen, onOpenChange, onUserAdded }) {
             </ModalHeader>
             <ModalBody>
               <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-xs text-blue-600 font-medium">
+                    ℹ️ Default Password: <span className="font-semibold">LeadRabbit@123</span>
+                  </p>
+                  <p className="text-xs text-blue-500 mt-1">
+                    The new user will receive this default password. They should change it on their first login.
+                  </p>
+                </div>
+
                 <Input
                   id="name"
                   name="name"
@@ -231,43 +183,6 @@ export default function CustomModal({ isOpen, onOpenChange, onUserAdded }) {
                   onChange={handleChange}
                   required
                   size="sm"
-                />
-
-                <Input
-                  type="password"
-                  id="password"
-                  name="password"
-                  label="Password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                  size="sm"
-                />
-                <div className="mt-2 space-y-1 text-xs">
-                  <p className="font-medium text-gray-600">
-                    Password must include:
-                  </p>
-                  {checkItem("At least 8 characters", passwordChecks.length)}
-                  {checkItem("1 uppercase letter", passwordChecks.upper)}
-                  {checkItem("1 lowercase letter", passwordChecks.lower)}
-                  {checkItem("1 number", passwordChecks.number)}
-                  {checkItem(
-                    "1 special character (!@#$%^&*)",
-                    passwordChecks.special,
-                  )}
-                </div>
-
-                <Input
-                  type="password"
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  label="Confirm password"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  required
-                  size="sm"
-                  isInvalid={!!confirmError}
-                  errorMessage={confirmError}
                 />
               </form>
 

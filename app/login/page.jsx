@@ -19,9 +19,10 @@ function LoginContent() {
   const [passwordError, setPasswordError] = React.useState("");
   
   // TOTP states
-  const [loginStep, setLoginStep] = React.useState('credentials'); // 'credentials' | 'totp-setup' | 'totp-verify'
+  const [loginStep, setLoginStep] = React.useState('credentials'); // 'credentials' | 'password-reset' | 'totp-setup' | 'totp-verify'
   const [loginEmail, setLoginEmail] = React.useState("");
   const [loginPassword, setLoginPassword] = React.useState("");
+  const [newPassword, setNewPassword] = React.useState(""); // Store new password after password reset
   const [totpToken, setTotpToken] = React.useState("");
   const [totpSecret, setTotpSecret] = React.useState("");
   const [qrCodeUrl, setQrCodeUrl] = React.useState("");
@@ -214,14 +215,30 @@ function LoginContent() {
     }
 
     setIsLoading(true);
-    setLoginEmail(email.trim());
+    setLoginEmail(email.toLowerCase().trim());
     setLoginPassword(password);
 
     try {
       const response = await axios.post(`authenticate`, {
-        email: email.trim(),
+        email: email.toLowerCase().trim(),
         password,
       });
+
+      if (response.data.requiresPasswordReset) {
+        // Admin reset password - show password change UI
+        setUserRole(response.data.role);
+        setLoginStep('password-reset');
+        setIsLoading(false);
+        addToast({
+          title: "Password Reset Required",
+          description: "Your password has been reset by an administrator. Please set a new password.",
+          color: "warning",
+          classNames: {
+            closeButton: "opacity-100 absolute right-4 top-1/2 -translate-y-1/2",
+          },
+        });
+        return;
+      }
 
       if (response.data.requiresTotpSetup) {
         // First time login - show QR code
@@ -300,9 +317,12 @@ function LoginContent() {
     setIsLoading(true);
 
     try {
+      // Use newPassword if coming from password reset, otherwise use loginPassword
+      const passwordToUse = newPassword || loginPassword;
+      
       const response = await axios.post(`authenticate`, {
-        email: loginEmail,
-        password: loginPassword,
+        email: loginEmail.toLowerCase().trim(),
+        password: passwordToUse,
         totpToken,
         setupTotp: true,
       });
@@ -335,13 +355,114 @@ function LoginContent() {
     }
   };
 
+  const validatePassword = (password) => {
+    // At least 8 characters, 1 uppercase, 1 lowercase, 1 number, 1 special character
+    const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    return regex.test(password);
+  };
+
+  const handlePasswordReset = async (e) => {
+    e.preventDefault();
+    const formData = Object.fromEntries(new FormData(e.currentTarget));
+    const { newPassword, confirmPassword } = formData;
+
+    // Validate passwords
+    if (!newPassword || !confirmPassword) {
+      addToast({
+        title: "Validation Error",
+        description: "Please fill in all password fields",
+        color: "warning",
+        classNames: {
+          closeButton: "opacity-100 absolute right-4 top-1/2 -translate-y-1/2",
+        },
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      addToast({
+        title: "Validation Error",
+        description: "Passwords do not match",
+        color: "warning",
+        classNames: {
+          closeButton: "opacity-100 absolute right-4 top-1/2 -translate-y-1/2",
+        },
+      });
+      return;
+    }
+
+    if (!validatePassword(newPassword)) {
+      addToast({
+        title: "Weak Password",
+        description: "Password must be at least 8 characters with uppercase, lowercase, number, and special character (@$!%*?&)",
+        color: "warning",
+        classNames: {
+          closeButton: "opacity-100 absolute right-4 top-1/2 -translate-y-1/2",
+        },
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await axios.post(`user/change-password`, {
+        email: loginEmail.toLowerCase().trim(),
+        newPassword,
+      });
+
+      if (response.status === 200) {
+        // Store new password for use in TOTP setup
+        setNewPassword(newPassword);
+        
+        addToast({
+          title: "Success!",
+          description: "Password changed successfully. Proceeding to next step...",
+          color: "success",
+          classNames: {
+            closeButton: "opacity-100 absolute right-4 top-1/2 -translate-y-1/2",
+          },
+        });
+
+        // Check if MFA needs setup
+        const checkMfaResponse = await axios.post(`authenticate`, {
+          email: loginEmail.toLowerCase().trim(),
+          password: newPassword,
+        });
+
+        if (checkMfaResponse.data.requiresTotpSetup) {
+          setTotpSecret(checkMfaResponse.data.totpSecret);
+          setLoginStep('totp-setup');
+        } else if (checkMfaResponse.data.requiresTotp) {
+          setLoginStep('totp-verify');
+        } else if (checkMfaResponse.data.success) {
+          // No MFA needed, proceed to login
+          setTimeout(() => {
+            router.push("/");
+          }, 500);
+        }
+      }
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || "Failed to change password";
+      addToast({
+        title: "Error",
+        description: errorMsg,
+        color: "danger",
+        classNames: {
+          closeButton: "opacity-100 absolute right-4 top-1/2 -translate-y-1/2",
+        },
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   const handleTotpVerify = async (e) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
       const response = await axios.post(`authenticate`, {
-        email: loginEmail,
+        email: loginEmail.toLowerCase().trim(),
         password: loginPassword,
         totpToken,
       });
@@ -573,7 +694,109 @@ function LoginContent() {
             </Form>
           )}
 
-          {/* Step 2: TOTP Setup */}
+          {/* Step 2: Password Reset */}
+          {loginStep === 'password-reset' && (
+            <Form className="flex flex-col gap-4 sm:gap-6" onSubmit={handlePasswordReset}>
+              <div className="text-center mb-4">
+                <h2 className="text-xl font-bold text-gray-800">Change Password</h2>
+                <p className="text-sm text-gray-600 mt-1">Your password has been reset. Please set a new strong password.</p>
+              </div>
+
+              {/* New Password Input */}
+              <div className="flex flex-col gap-2 w-full">
+                <label htmlFor="newPassword" className="text-sm font-semibold text-gray-700 flex items-center gap-1">
+                  New Password <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  id="newPassword"
+                  name="newPassword"
+                  type={isVisible ? "text" : "password"}
+                  placeholder="Enter new password (min 8 chars, uppercase, lowercase, number, special char)"
+                  startContent={<LockClosedIcon className="w-5 h-5 text-gray-400" />}
+                  endContent={
+                    <button
+                      aria-label="toggle password visibility"
+                      className="focus:outline-none p-1 hover:bg-gray-100 rounded-md transition-colors"
+                      type="button"
+                      onClick={toggleVisibility}
+                      disabled={isLoading}
+                    >
+                      {isVisible ? (
+                        <EyeSlashIcon className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                      ) : (
+                        <EyeIcon className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                      )}
+                    </button>
+                  }
+                  classNames={{
+                    base: "w-full",
+                    input: ["bg-transparent", "text-gray-900", "placeholder:text-gray-400", "text-sm sm:text-base"],
+                  }}
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Confirm Password Input */}
+              <div className="flex flex-col gap-2 w-full">
+                <label htmlFor="confirmPassword" className="text-sm font-semibold text-gray-700 flex items-center gap-1">
+                  Confirm Password <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={isVisible ? "text" : "password"}
+                  placeholder="Confirm your password"
+                  startContent={<LockClosedIcon className="w-5 h-5 text-gray-400" />}
+                  endContent={
+                    <button
+                      aria-label="toggle password visibility"
+                      className="focus:outline-none p-1 hover:bg-gray-100 rounded-md transition-colors"
+                      type="button"
+                      onClick={toggleVisibility}
+                      disabled={isLoading}
+                    >
+                      {isVisible ? (
+                        <EyeSlashIcon className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                      ) : (
+                        <EyeIcon className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                      )}
+                    </button>
+                  }
+                  classNames={{
+                    base: "w-full",
+                    input: ["bg-transparent", "text-gray-900", "placeholder:text-gray-400", "text-sm sm:text-base"],
+                  }}
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Password Requirements */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2 w-full">
+                <p className="text-xs font-semibold text-blue-900 mb-2">Password Requirements:</p>
+                <ul className="text-xs text-blue-800 space-y-1">
+                  <li>✓ At least 8 characters</li>
+                  <li>✓ One uppercase letter (A-Z)</li>
+                  <li>✓ One lowercase letter (a-z)</li>
+                  <li>✓ One number (0-9)</li>
+                  <li>✓ One special character (@$!%*?&)</li>
+                </ul>
+              </div>
+
+              {/* Submit Button */}
+              <Button
+                color="primary"
+                size="lg"
+                className="w-full font-semibold text-base sm:text-lg bg-gradient-to-r from-[#5B62E3] to-[#7C82F0] hover:from-[#4A51D2] hover:to-[#6B71DF] mt-2"
+                type="submit"
+                disabled={isLoading}
+                isLoading={isLoading}
+              >
+                {isLoading ? "Updating Password..." : "Set Password"}
+              </Button>
+            </Form>
+          )}
+
+          {/* Step 3: TOTP Setup */}
           {loginStep === 'totp-setup' && (
             <TotpSetupForm
               email={loginEmail}

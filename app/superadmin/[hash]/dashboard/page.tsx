@@ -36,7 +36,7 @@ import {
   PencilSquareIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
-import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/solid";
+import { EyeIcon, EyeSlashIcon, KeyIcon, ShieldExclamationIcon } from "@heroicons/react/24/solid";
 import axios from "@/lib/axios";
 
 interface Customer {
@@ -45,6 +45,7 @@ interface Customer {
   customerName: string;
   databaseName: string;
   adminEmail: string;
+  adminId?: string;
   status: "active" | "inactive" | "suspended";
   createdAt: string;
   metadata?: {
@@ -65,17 +66,21 @@ export default function SuperAdminDashboard() {
   const [showPassword, setShowPassword] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+  const { isOpen: isConfirmOpen, onOpen: onConfirmOpen, onClose: onConfirmClose } = useDisclosure();
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ type: string; action: () => void; message: string } | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
     customerName: "",
     adminEmail: "",
-    adminPassword: "",
+    adminPassword: "LeadRabbit@123",
     companyName: "",
     phone: "",
     address: "",
+    maxUsers: 10,
+    maxAdmins: 2,
   });
 
   useEffect(() => {
@@ -94,6 +99,23 @@ export default function SuperAdminDashboard() {
     }
   };
 
+  const showConfirmation = (message: string, onConfirm: () => void) => {
+    setConfirmAction({
+      type: 'action',
+      action: onConfirm,
+      message,
+    });
+    onConfirmOpen();
+  };
+
+  const performConfirmedAction = async () => {
+    if (confirmAction) {
+      await confirmAction.action();
+      onConfirmClose();
+      setConfirmAction(null);
+    }
+  };
+
   const handleCreateCustomer = async () => {
     try {
       setIsSaving(true);
@@ -102,6 +124,8 @@ export default function SuperAdminDashboard() {
         customerName: formData.customerName,
         adminEmail: formData.adminEmail,
         adminPassword: formData.adminPassword,
+        maxUsers: parseInt(String(formData.maxUsers), 10) || 10,
+        maxAdmins: parseInt(String(formData.maxAdmins), 10) || 2,
         metadata: {
           companyName: formData.companyName || undefined,
           phone: formData.phone || undefined,
@@ -241,31 +265,37 @@ export default function SuperAdminDashboard() {
   };
 
   const handleStatusChange = async (customerId: string, status: string) => {
-    try {
-      await axios.patch("superadmin/customers/list", {
-        customerId,
-        status,
-      });
-      addToast({
-        title: "Success!",
-        description: "Customer status updated successfully",
-        color: "success",
-        classNames: {
-          closeButton: "opacity-100 absolute right-4 top-1/2 -translate-y-1/2",
-        },
-      });
-      fetchCustomers();
-    } catch (error) {
-      console.error("Error updating status:", error);
-      addToast({
-        title: "Error",
-        description: "Failed to update customer status",
-        color: "danger",
-        classNames: {
-          closeButton: "opacity-100 absolute right-4 top-1/2 -translate-y-1/2",
-        },
-      });
-    }
+    const customer = customers.find(c => c.customerId === customerId);
+    const statusText = status.charAt(0).toUpperCase() + status.slice(1);
+    const message = `Are you sure you want to ${statusText.toLowerCase()} this customer?`;
+    
+    showConfirmation(message, async () => {
+      try {
+        await axios.patch("superadmin/customers/list", {
+          customerId,
+          status,
+        });
+        addToast({
+          title: "Success!",
+          description: "Customer status updated successfully",
+          color: "success",
+          classNames: {
+            closeButton: "opacity-100 absolute right-4 top-1/2 -translate-y-1/2",
+          },
+        });
+        fetchCustomers();
+      } catch (error) {
+        console.error("Error updating status:", error);
+        addToast({
+          title: "Error",
+          description: "Failed to update customer status",
+          color: "danger",
+          classNames: {
+            closeButton: "opacity-100 absolute right-4 top-1/2 -translate-y-1/2",
+          },
+        });
+      }
+    });
   };
 
   const handleLogout = async () => {
@@ -277,14 +307,76 @@ export default function SuperAdminDashboard() {
     }
   };
 
+  const handleResetPassword = async (customer: Customer) => {
+    const message = `Reset password for ${customer.adminEmail}? The password will be set to LeadRabbit@123.`;
+    
+    showConfirmation(message, async () => {
+      try {
+        const response = await axios.put(
+          `superadmin/customer-admins/${customer.customerId}/${customer.adminId}`,
+          { action: "resetPassword" }
+        );
+        addToast({
+          title: "Success!",
+          description: `Admin password reset. Temporary password: ${response.data.tempPassword}`,
+          color: "success",
+          classNames: {
+            closeButton: "opacity-100 absolute right-4 top-1/2 -translate-y-1/2",
+          },
+        });
+      } catch (error: any) {
+        addToast({
+          title: "Error",
+          description: error.response?.data?.error || "Failed to reset password",
+          color: "danger",
+          classNames: {
+            closeButton: "opacity-100 absolute right-4 top-1/2 -translate-y-1/2",
+          },
+        });
+      }
+    });
+  };
+
+  const handleResetMfa = async (customer: Customer) => {
+    const message = `Reset MFA for ${customer.adminEmail}? They will need to set up 2FA again on next login.`;
+    
+    showConfirmation(message, async () => {
+      try {
+        await axios.put(
+          `superadmin/customer-admins/${customer.customerId}/${customer.adminId}`,
+          { action: "resetMfa" }
+        );
+        addToast({
+          title: "Success!",
+          description: "Admin MFA reset successfully",
+          color: "success",
+          classNames: {
+            closeButton: "opacity-100 absolute right-4 top-1/2 -translate-y-1/2",
+          },
+        });
+      } catch (error: any) {
+        addToast({
+          title: "Error",
+          description: error.response?.data?.error || "Failed to reset MFA",
+          color: "danger",
+          classNames: {
+            closeButton: "opacity-100 absolute right-4 top-1/2 -translate-y-1/2",
+          },
+        });
+      }
+    });
+  };
+
   const resetForm = () => {
     setFormData({
       customerName: "",
       adminEmail: "",
-      adminPassword: "",
+      adminPassword: "LeadRabbit@123",
       companyName: "",
       phone: "",
       address: "",
+      maxUsers: 10,
+      maxAdmins: 2,
     });
     setShowPassword(false);
     setSelectedCustomer(null);
@@ -498,6 +590,24 @@ export default function SuperAdminDashboard() {
                           )}
                           <Button
                             size="sm"
+                            color="warning"
+                            variant="flat"
+                            startContent={<KeyIcon className="w-4 h-4" />}
+                            onPress={() => handleResetPassword(customer)}
+                          >
+                            Reset Password
+                          </Button>
+                          <Button
+                            size="sm"
+                            color="warning"
+                            variant="flat"
+                            startContent={<ShieldExclamationIcon className="w-4 h-4" />}
+                            onPress={() => handleResetMfa(customer)}
+                          >
+                            Reset MFA
+                          </Button>
+                          <Button
+                            size="sm"
                             color="danger"
                             variant="flat"
                             startContent={<TrashIcon className="w-4 h-4" />}
@@ -585,6 +695,40 @@ export default function SuperAdminDashboard() {
                   />
                 )}
 
+                {/* User and Admin Limits Section */}
+                {modalMode === 'create' && (
+                  <div className="space-y-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <p className="text-sm font-semibold text-gray-700">User & Admin Limits *</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        label="Max Users"
+                        type="number"
+                        placeholder="e.g., 10"
+                        value={String(formData.maxUsers)}
+                        onChange={(e) =>
+                          setFormData({ ...formData, maxUsers: parseInt(e.target.value) || 10 })
+                        }
+                        variant="bordered"
+                        min={1}
+                        required
+                      />
+                      <Input
+                        label="Max Admins"
+                        type="number"
+                        placeholder="e.g., 2"
+                        value={String(formData.maxAdmins)}
+                        onChange={(e) =>
+                          setFormData({ ...formData, maxAdmins: parseInt(e.target.value) || 2 })
+                        }
+                        variant="bordered"
+                        min={1}
+                        required
+                      />
+                    </div>
+                    <p className="text-xs text-gray-600">These limits control how many users and admins can be created for this customer.</p>
+                  </div>
+                )}
+
                 <div className="pt-4 border-t">
                   <p className="text-sm font-semibold text-gray-700 mb-3">
                     Additional Information (Optional)
@@ -642,11 +786,53 @@ export default function SuperAdminDashboard() {
               </Button>
               <Button
                 color="primary"
-                onPress={modalMode === 'create' ? handleCreateCustomer : handleUpdateCustomer}
+                onPress={() => {
+                  const actionMessage = modalMode === 'create' 
+                    ? `Create new customer "${formData.customerName}"?`
+                    : `Update customer "${formData.customerName}"?`;
+                  const actionFn = modalMode === 'create' 
+                    ? handleCreateCustomer 
+                    : handleUpdateCustomer;
+                  showConfirmation(actionMessage, actionFn);
+                }}
                 isLoading={isSaving}
                 className="bg-gradient-to-r from-purple-600 to-blue-600"
               >
                 {modalMode === 'create' ? 'Create Customer' : 'Update Customer'}
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+        {/* Action Confirmation Modal */}
+        <Modal
+          isOpen={isConfirmOpen}
+          onClose={onConfirmClose}
+          size="sm"
+          backdrop="blur"
+        >
+          <ModalContent>
+            <ModalHeader className="flex flex-col gap-1">
+              <h2 className="text-xl font-bold">Confirm Action</h2>
+            </ModalHeader>
+            <ModalBody>
+              <p className="text-gray-700">{confirmAction?.message}</p>
+            </ModalBody>
+            <ModalFooter>
+              <Button
+                variant="flat"
+                onPress={() => {
+                  onConfirmClose();
+                  setConfirmAction(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                color="danger"
+                onPress={performConfirmedAction}
+              >
+                Confirm
               </Button>
             </ModalFooter>
           </ModalContent>

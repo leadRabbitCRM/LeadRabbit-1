@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 import { ObjectId } from "mongodb";
 
 import clientPromise from "@/lib/mongodb";
@@ -214,7 +215,7 @@ async function resolveAdmin(req: NextRequest) {
     return { status: 403, error: "Admin not found" } as const;
   }
 
-  return { status: 200 as const, db, usersCollection };
+  return { status: 200 as const, db, usersCollection, email };
 }
 
 export async function GET(req: NextRequest, { params }: RouteContext) {
@@ -416,6 +417,68 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
       });
     }
 
+    if (action === "resetPassword") {
+      const userDoc = await usersCollection.findOne({ _id: userId });
+
+      if (!userDoc) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+
+      // Use fixed temporary password
+      const tempPassword = "LeadRabbit@123";
+      
+      // Hash the password before storing
+      const hashedPassword = bcrypt.hashSync(tempPassword, 10);
+      const now = new Date();
+
+      await usersCollection.updateOne(
+        { _id: userId },
+        {
+          $set: {
+            password: hashedPassword,
+            passwordResetRequired: true,
+            updatedAt: now,
+          },
+        },
+      );
+
+      return NextResponse.json({
+        message: "Password reset successfully",
+        tempPassword, // In production, send this via email instead
+        resetRequired: true,
+      });
+    }
+
+    if (action === "resetMfa") {
+      const userDoc = await usersCollection.findOne({ _id: userId });
+
+      if (!userDoc) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+
+      const now = new Date();
+
+      await usersCollection.updateOne(
+        { _id: userId },
+        {
+          $unset: {
+            totpSecret: "",
+            totpEnabled: "",
+            mfaSecret: "",
+            mfaEnabled: "",
+          },
+          $set: {
+            updatedAt: now,
+          },
+        },
+      );
+
+      return NextResponse.json({
+        message: "MFA has been reset successfully",
+        mfaEnabled: false,
+      });
+    }
+
     if (action === "update") {
       const validation = validateAdminUpdatePayload(body?.payload ?? {});
 
@@ -566,8 +629,10 @@ export async function DELETE(req: NextRequest, { params }: RouteContext) {
       );
     }
 
-    const { db, usersCollection } = resolved;
+    const { db, usersCollection, email: currentUserEmail } = resolved;
     const { id } = await params;
+
+    console.log("DELETE endpoint - currentUserEmail:", currentUserEmail);
 
     if (!ObjectId.isValid(id)) {
       return NextResponse.json(
@@ -578,6 +643,28 @@ export async function DELETE(req: NextRequest, { params }: RouteContext) {
 
     const userId = new ObjectId(id);
     const employeesCollection = db.collection("employees");
+
+    // Fetch the user to get their email
+    const userToDelete = await usersCollection.findOne({ _id: userId });
+    
+    console.log("DELETE endpoint - userToDelete email:", userToDelete?.email);
+
+    if (!userToDelete) {
+      return NextResponse.json(
+        { error: "Employee profile not found" },
+        { status: 404 },
+      );
+    }
+
+    // Check if user is trying to delete themselves
+    if (currentUserEmail && userToDelete.email && 
+        userToDelete.email.toLowerCase() === currentUserEmail.toLowerCase()) {
+      console.log("SELF DELETE PREVENTED:", currentUserEmail);
+      return NextResponse.json(
+        { error: "You cannot delete your own account" },
+        { status: 403 },
+      );
+    }
 
     const [userResult, employeeResult] = await Promise.all([
       usersCollection.deleteOne({ _id: userId }),

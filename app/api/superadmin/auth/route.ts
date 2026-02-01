@@ -19,6 +19,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Convert email to lowercase for case-insensitive handling
+    const lowerEmail = email.toLowerCase().trim();
+
     // Get super admin database
     const superAdminDb = await getSuperAdminDb();
     if (!superAdminDb) {
@@ -30,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     // Check super admin credentials
     const superAdminsCollection = superAdminDb.collection("super_admins");
-    const superAdmin = await superAdminsCollection.findOne({ email });
+    const superAdmin = await superAdminsCollection.findOne({ email: lowerEmail });
 
     if (!superAdmin) {
       return NextResponse.json(
@@ -68,13 +71,13 @@ export async function POST(req: NextRequest) {
 
         // Enable TOTP
         await superAdminsCollection.updateOne(
-          { email },
+          { email: lowerEmail },
           { $set: { totpEnabled: true, lastLogin: new Date() } }
         );
 
         // Create JWT token
         const token = jwt.sign(
-          { email, role: "superadmin" },
+          { email: lowerEmail, role: "superadmin" },
           process.env.JWT_SECRET!,
           { expiresIn: "8h" }
         );
@@ -132,7 +135,7 @@ export async function POST(req: NextRequest) {
 
       // Create JWT token for super admin
       const token = jwt.sign(
-        { email, role: "superadmin" },
+        { email: lowerEmail, role: "superadmin" },
         process.env.JWT_SECRET!,
         { expiresIn: "8h" }
       );
@@ -155,7 +158,7 @@ export async function POST(req: NextRequest) {
 
       // Update last login
       await superAdminsCollection.updateOne(
-        { email },
+        { email: lowerEmail },
         { $set: { lastLogin: new Date() } }
       );
 

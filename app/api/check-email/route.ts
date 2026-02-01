@@ -18,7 +18,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const taken = await isEmailTaken(email);
+    // Convert email to lowercase for case-insensitive checking
+    const lowerEmail = email.toLowerCase().trim();
+
+    const taken = await isEmailTaken(lowerEmail);
 
     return NextResponse.json(
       { 

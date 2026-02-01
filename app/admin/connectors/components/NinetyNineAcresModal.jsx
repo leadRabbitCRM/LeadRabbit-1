@@ -1,9 +1,11 @@
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input } from "@heroui/react";
 import { useState } from "react";
+import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/solid";
 
 export default function NinetyNineAcresModal({ isOpen, onOpenChange, onSuccess }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -56,11 +58,24 @@ export default function NinetyNineAcresModal({ isOpen, onOpenChange, onSuccess }
               />
               <Input
                 label="Password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="Enter your 99acres password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 isDisabled={isLoading}
+                endContent={
+                  <button
+                    className="focus:outline-none"
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeSlashIcon className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                    ) : (
+                      <EyeIcon className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                    )}
+                  </button>
+                }
               />
               {error && (
                 <p className="text-sm text-danger">{error}</p>

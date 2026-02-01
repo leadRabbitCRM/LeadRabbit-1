@@ -249,12 +249,6 @@ export default function Header() {
                   <p>My Profile</p>
                 </div>
               </DropdownItem>
-              <DropdownItem key="tasks">
-                <div className="flex items-center gap-2">
-                  <ClipboardDocumentCheckIcon className="w-5 text-slate-400" />
-                  <p>My Tasks</p>
-                </div>
-              </DropdownItem>
               <DropdownItem key="logout" color="danger">
                 <Divider className="mb-2" />
                 <Button

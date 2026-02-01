@@ -21,7 +21,7 @@ export interface MetaLeadForm {
   locale: string;
   name: string;
   status: string;
-  leads: MetaLead[];
+  leads: number; // Changed from MetaLead[] to number - stores the count of leads synced
 }
 
 export interface MetaPage {

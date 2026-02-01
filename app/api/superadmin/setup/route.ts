@@ -32,6 +32,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Convert email to lowercase for case-insensitive storage
+    const lowerEmail = email.toLowerCase().trim();
+
     if (password.length < 6) {
       return NextResponse.json(
         { error: "Password must be at least 6 characters" },
@@ -61,7 +64,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if email already exists
-    const existing = await superAdminsCollection.findOne({ email });
+    const existing = await superAdminsCollection.findOne({ email: lowerEmail });
     if (existing) {
       return NextResponse.json(
         { error: "Super admin with this email already exists" },
@@ -74,7 +77,7 @@ export async function POST(req: NextRequest) {
 
     // Create super admin
     const superAdmin = {
-      email,
+      email: lowerEmail,
       name,
       password: hashedPassword,
       createdAt: new Date(),

@@ -1,11 +1,32 @@
 import { NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
+import jwt from "jsonwebtoken";
 
-export async function GET() {
+function getCustomerDb(request) {
   try {
+    const token = request.cookies.get("appToken")?.value;
+    if (!token) return null;
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return decoded.dbName;
+  } catch {
+    return null;
+  }
+}
+
+export async function GET(request) {
+  try {
+    const dbName = getCustomerDb(request);
+    if (!dbName) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const client = await clientPromise;
-    const db = client.db("leadrabbit");
+    const db = client.db(dbName);
 
     const accounts = await db
       .collection("99acresIntegrations")
@@ -35,10 +56,18 @@ export async function GET() {
 
 export async function POST(request) {
   try {
+    const dbName = getCustomerDb(request);
+    if (!dbName) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const { accountId, action } = await request.json();
 
     const client = await clientPromise;
-    const db = client.db("leadrabbit");
+    const db = client.db(dbName);
 
     if (action === "enable" || action === "disable") {
       await db.collection("99acresIntegrations").updateOne(
@@ -64,10 +93,18 @@ export async function POST(request) {
 
 export async function DELETE(request) {
   try {
+    const dbName = getCustomerDb(request);
+    if (!dbName) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const { accountId } = await request.json();
 
     const client = await clientPromise;
-    const db = client.db("leadrabbit");
+    const db = client.db(dbName);
 
     // Delete the account
     await db.collection("99acresIntegrations").deleteOne({

@@ -2,6 +2,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import CustomButton from "./ui/CustomButton";
 import StatusChip from "./ui/StatusChip";
+import SourceBadge from "./ui/SourceBadge";
 import { StarIcon } from "@heroicons/react/24/solid";
 import Image from "next/image";
 
@@ -44,8 +45,12 @@ export default function CustomCard({
 
   const handleFavoriteClick = (e) => {
     e.stopPropagation(); // Prevent opening the drawer
+    console.log("⭐ CustomCard favorite clicked - leadId:", leadId, "onToggleFavorite:", !!onToggleFavorite);
     if (onToggleFavorite && leadId) {
+      console.log("✅ Calling onToggleFavorite with leadId:", leadId);
       onToggleFavorite(leadId);
+    } else {
+      console.log("❌ CustomCard: Missing leadId or onToggleFavorite - leadId:", leadId, "onToggleFavorite:", !!onToggleFavorite);
     }
   };
 
@@ -115,18 +120,8 @@ export default function CustomCard({
 
             <div className="flex items-center gap-2">
               {/* Platform Logo */}
-              {lead.metaData?.platform && (
-                <div className="flex-shrink-0 bg-white rounded-lg p-1.5 shadow-sm border border-gray-200">
-                  <Image
-                    src={lead.metaData.platform === "facebook" 
-                      ? "/icons/facebookIcon.svg" 
-                      : "/icons/instagramIcon.svg"}
-                    alt={lead.metaData.platform}
-                    width={20}
-                    height={20}
-                    className="w-4 h-4 sm:w-5 sm:h-5"
-                  />
-                </div>
+              {(lead.metaData?.platform || lead.source === "99acres") && (
+                <SourceBadge source={lead.source || lead.metaData?.platform} size="sm" />
               )}
 
               {/* Favorites Button */}

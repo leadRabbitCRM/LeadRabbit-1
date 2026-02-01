@@ -121,11 +121,11 @@ export default function AdminDashboard() {
           (lead) => !lead.assignedTo,
         ).length;
 
-        // Fetch employee count
+        // Fetch employee count (all users including admins)
         let totalUsers = 0;
         try {
-          const employeesResponse = await axios.get("/admin/employees");
-          totalUsers = employeesResponse.data?.length || 0;
+          const employeesResponse = await axios.get("admin/addUser");
+          totalUsers = employeesResponse.data?.users?.length || 0;
         } catch (error) {
           console.error("Error fetching employees:", error);
         }
@@ -160,6 +160,11 @@ export default function AdminDashboard() {
     };
 
     fetchStats();
+
+    // Refresh stats every 30 seconds
+    const statsInterval = setInterval(fetchStats, 30000);
+
+    return () => clearInterval(statsInterval);
   }, []);
 
   // Get greeting based on time of day

@@ -13,6 +13,9 @@ export interface Customer {
   customerName: string;
   databaseName: string;
   adminEmail: string;
+  adminId?: string; // MongoDB ObjectId of admin user in customer database
+  maxUsers?: number;
+  maxAdmins?: number;
   status: "active" | "inactive" | "suspended";
   createdAt: Date;
   updatedAt: Date;
@@ -82,8 +85,11 @@ export async function getCustomerDbByEmail(email: string): Promise<{ db: Db; cus
 
     const customersCollection = superAdminDb.collection<Customer>("customers");
     
+    // Convert email to lowercase for case-insensitive comparison
+    const lowerEmail = email.toLowerCase().trim();
+    
     // First, try to find customer by admin email
-    let customer = await customersCollection.findOne({ adminEmail: email, status: "active" });
+    let customer = await customersCollection.findOne({ adminEmail: lowerEmail, status: "active" });
 
     // If not found as admin, search in customer databases for user email
     if (!customer) {
@@ -94,7 +100,7 @@ export async function getCustomerDbByEmail(email: string): Promise<{ db: Db; cus
       for (const cust of allCustomers) {
         const customerDb = client.db(cust.databaseName);
         const usersCollection = customerDb.collection("users");
-        const user = await usersCollection.findOne({ email });
+        const user = await usersCollection.findOne({ email: lowerEmail });
         
         if (user) {
           customer = cust;
@@ -188,8 +194,11 @@ export async function isEmailTaken(email: string): Promise<boolean> {
 
     const customersCollection = superAdminDb.collection<Customer>("customers");
     
+    // Convert email to lowercase for case-insensitive comparison
+    const lowerEmail = email.toLowerCase().trim();
+    
     // Check if email is used as admin email
-    const adminExists = await customersCollection.findOne({ adminEmail: email });
+    const adminExists = await customersCollection.findOne({ adminEmail: lowerEmail });
     if (adminExists) return true;
 
     // Check all customer databases
@@ -200,7 +209,7 @@ export async function isEmailTaken(email: string): Promise<boolean> {
     for (const customer of allCustomers) {
       const customerDb = client.db(customer.databaseName);
       const usersCollection = customerDb.collection("users");
-      const user = await usersCollection.findOne({ email });
+      const user = await usersCollection.findOne({ email: lowerEmail });
       if (user) return true;
     }
 
@@ -218,7 +227,9 @@ export async function createCustomer(
   customerName: string,
   adminEmail: string,
   adminPassword: string,
-  metadata?: Customer["metadata"]
+  metadata?: Customer["metadata"],
+  maxUsers?: number,
+  maxAdmins?: number
 ): Promise<{ success: boolean; customerId?: string; error?: string }> {
   try {
     const superAdminDb = await getSuperAdminDb();
@@ -227,9 +238,12 @@ export async function createCustomer(
     }
 
     const customersCollection = superAdminDb.collection<Customer>("customers");
+    
+    // Convert email to lowercase for case-insensitive storage and comparison
+    const lowerEmail = adminEmail.toLowerCase().trim();
 
     // Check if email is already taken globally
-    const emailTaken = await isEmailTaken(adminEmail);
+    const emailTaken = await isEmailTaken(lowerEmail);
     if (emailTaken) {
       return { success: false, error: "This email is already in use. Please use a different email." };
     }
@@ -243,7 +257,9 @@ export async function createCustomer(
       customerId,
       customerName,
       databaseName,
-      adminEmail,
+      adminEmail: lowerEmail,
+      maxUsers: maxUsers || 10,
+      maxAdmins: maxAdmins || 2,
       status: "active",
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -262,14 +278,7 @@ export async function createCustomer(
 
     // Create admin user in customer database
     const bcrypt = require("bcryptjs");
-    const speakeasy = require("speakeasy");
     const hashedPassword = await bcrypt.hash(adminPassword, 10);
-
-    // Generate TOTP secret for admin
-    const totpSecret = speakeasy.generateSecret({
-      name: `${customerName} (${adminEmail})`,
-      issuer: 'LeadRabbit'
-    });
 
     const client = await clientPromise;
     if (!client) {
@@ -279,17 +288,25 @@ export async function createCustomer(
     const customerDb = client.db(databaseName);
     const usersCollection = customerDb.collection("users");
 
-    await usersCollection.insertOne({
-      email: adminEmail,
+    const adminUserResult = await usersCollection.insertOne({
+      email: lowerEmail,
       password: hashedPassword,
       name: customerName,
       role: "admin",
-      totpSecret: totpSecret.base32,
       totpEnabled: false,
+      isFreshAccount: true,
+      passwordResetRequired: true,
       isOnline: false,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
+
+    // Store the admin user ID in the customer record
+    const adminId = adminUserResult.insertedId.toString();
+    await customersCollection.updateOne(
+      { customerId },
+      { $set: { adminId } }
+    );
 
     console.log(`Customer created successfully: ${customerId}`);
     return { success: true, customerId };
@@ -371,9 +388,10 @@ export async function updateCustomer(
         return { success: false, error: "Customer not found" };
       }
       
-      // Only check if email is actually changing
-      if (customer.adminEmail !== updateData.adminEmail) {
-        const emailTaken = await isEmailTaken(updateData.adminEmail);
+      // Convert to lowercase and check if email is actually changing
+      const lowerEmail = updateData.adminEmail.toLowerCase().trim();
+      if (customer.adminEmail !== lowerEmail) {
+        const emailTaken = await isEmailTaken(lowerEmail);
         if (emailTaken) {
           return { success: false, error: "This email is already in use. Please use a different email." };
         }
@@ -382,7 +400,7 @@ export async function updateCustomer(
 
     const result = await customersCollection.updateOne(
       { customerId },
-      { $set: { ...updateData, updatedAt: new Date() } }
+      { $set: { ...updateData, adminEmail: updateData.adminEmail?.toLowerCase().trim(), updatedAt: new Date() } }
     );
 
     if (result.modifiedCount === 0) {

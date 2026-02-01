@@ -107,9 +107,12 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+    // Convert email to lowercase if provided
+    const lowerEmail = adminEmail ? adminEmail.toLowerCase().trim() : undefined;
+
     const result = await updateCustomer(customerId, {
       customerName,
-      adminEmail,
+      adminEmail: lowerEmail,
       metadata
     });
 

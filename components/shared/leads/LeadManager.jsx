@@ -69,6 +69,8 @@ export default function LeadManager({
       externalFilters.dateRange ||
       (externalFilters.sourcePlatform &&
         externalFilters.sourcePlatform !== "all") ||
+      (externalFilters.sourceFilter &&
+        externalFilters.sourceFilter !== "all") ||
       externalFilters.assignedUserSearch?.trim()
     );
   }, [hasExternalFilters, externalFilters]);
@@ -277,6 +279,13 @@ export default function LeadManager({
       );
     }
 
+    // Apply source filter
+    if (filters.sourceFilter && filters.sourceFilter !== "all") {
+      filtered = filtered.filter(
+        (lead) => lead.source === filters.sourceFilter,
+      );
+    }
+
     // Apply source platform filter
     if (filters.sourcePlatform && filters.sourcePlatform !== "all") {
       filtered = filtered.filter(
@@ -376,14 +385,21 @@ export default function LeadManager({
 
   const toggleFavorite = useCallback(
     (leadId) => {
-      if (!leadId) return;
+      if (!leadId) {
+        console.log("❌ toggleFavorite: No leadId provided");
+        return;
+      }
+
+      console.log("🎯 toggleFavorite called - leadId:", leadId, "externalToggleFavorite exists:", !!externalToggleFavorite);
 
       // Use external toggle function if provided
       if (externalToggleFavorite) {
+        console.log("📤 Using external toggle function");
         externalToggleFavorite(leadId);
         return;
       }
 
+      console.log("⚠️ No external toggle, using local state");
       setFavorites((prev) => {
         if (prev.includes(leadId)) {
           // Remove from favorites
@@ -611,7 +627,7 @@ export default function LeadManager({
                 <div className="flex items-center gap-1">
                   <Squares2X2Icon className="w-4 h-4" />
                   <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
-                    {leads.length}
+                    {filteredLeads.length}
                   </span>
                 </div>
               }
@@ -622,7 +638,7 @@ export default function LeadManager({
                 <div className="flex items-center gap-1">
                   <SparklesIcon className="w-4 h-4" />
                   <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
-                    {leads.filter((l) => l.status === "New").length}
+                    {filteredLeads.filter((l) => l.status === "New").length}
                   </span>
                 </div>
               }
@@ -633,7 +649,7 @@ export default function LeadManager({
                 <div className="flex items-center gap-1">
                   <FireIcon className="w-4 h-4" />
                   <span className="text-[10px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
-                    {leads.filter((l) => l.status === "Interested").length}
+                    {filteredLeads.filter((l) => l.status === "Interested").length}
                   </span>
                 </div>
               }
@@ -644,7 +660,7 @@ export default function LeadManager({
                 <div className="flex items-center gap-1">
                   <XCircleIcon className="w-4 h-4" />
                   <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
-                    {leads.filter((l) => l.status === "Not Interested").length}
+                    {filteredLeads.filter((l) => l.status === "Not Interested").length}
                   </span>
                 </div>
               }
@@ -655,7 +671,7 @@ export default function LeadManager({
                 <div className="flex items-center gap-1">
                   <CheckCircleIcon className="w-4 h-4" />
                   <span className="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
-                    {leads.filter((l) => l.status === "Deal").length}
+                    {filteredLeads.filter((l) => l.status === "Deal").length}
                   </span>
                 </div>
               }

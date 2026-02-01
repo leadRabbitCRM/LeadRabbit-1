@@ -28,6 +28,31 @@ import LeadHistoryTable from "./ui/LeadHistoryTable";
 import StatusChip from "./ui/StatusChip";
 import axios from "@/lib/axios";
 
+// Validation functions
+const isValidEmail = (email) => {
+  // Handle undefined, null, empty strings, and whitespace
+  if (email === undefined || email === null) return false;
+  if (typeof email !== 'string') return false;
+  const trimmed = email.trim();
+  if (trimmed === '') return false;
+  
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(trimmed);
+};
+
+const isValidPhoneNumber = (phone) => {
+  // Handle undefined, null, empty strings, and whitespace
+  if (phone === undefined || phone === null) return false;
+  if (typeof phone !== 'string') return false;
+  const trimmed = phone.trim();
+  if (trimmed === '') return false;
+  
+  // Remove all non-digit characters
+  const digitsOnly = trimmed.replace(/\D/g, '');
+  // Phone should have at least 10 digits
+  return digitsOnly.length >= 10;
+};
+
 const STATUS_OPTIONS = [
   { key: "New", label: "New" },
   { key: "Interested", label: "Interested" },
@@ -589,13 +614,26 @@ export default function LeadCard({
                     </div>
                     <div className="p-4 sm:p-6">
                       <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                        {/* Call Now */}
                         <a
-                          href={`tel:${lead.phone}`}
-                          className="group relative overflow-hidden bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-blue-300 rounded-2xl transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/10 active:scale-95 min-h-[64px] flex items-center justify-center"
+                          href={isValidPhoneNumber(lead?.phone) ? `tel:${lead.phone}` : "#"}
+                          onClick={(e) => !isValidPhoneNumber(lead?.phone) && e.preventDefault()}
+                          className={`group relative overflow-hidden text-gray-700 border rounded-2xl transition-all duration-300 active:scale-95 min-h-[64px] flex items-center justify-center ${
+                            isValidPhoneNumber(lead?.phone)
+                              ? "bg-white hover:bg-gray-50 border-gray-200 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-500/10 cursor-pointer"
+                              : "bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed"
+                          }`}
+                          title={!isValidPhoneNumber(lead?.phone) ? (!lead?.phone ? "Phone number not available" : "Invalid phone number") : ""}
                         >
-                          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                          <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${
+                            isValidPhoneNumber(lead?.phone)
+                              ? "bg-gradient-to-br from-blue-500/5 to-transparent"
+                              : ""
+                          }`}></div>
                           <div className="relative flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              isValidPhoneNumber(lead?.phone)
+                            }`}>
                               <PhoneIcon className="w-4 h-4 text-white flex-shrink-0" />
                             </div>
                             <span className="font-medium text-sm">
@@ -603,13 +641,29 @@ export default function LeadCard({
                             </span>
                           </div>
                         </a>
+
+                        {/* WhatsApp */}
                         <a
-                          href={`https://wa.me/${lead.phone}`}
-                          className="group relative overflow-hidden bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-green-300 rounded-2xl transition-all duration-300 hover:shadow-lg hover:shadow-green-500/10 active:scale-95 min-h-[64px] flex items-center justify-center"
+                          href={isValidPhoneNumber(lead?.phone) ? `https://wa.me/${lead.phone}` : "#"}
+                          onClick={(e) => !isValidPhoneNumber(lead?.phone) && e.preventDefault()}
+                          className={`group relative overflow-hidden text-gray-700 border rounded-2xl transition-all duration-300 active:scale-95 min-h-[64px] flex items-center justify-center ${
+                            isValidPhoneNumber(lead?.phone)
+                              ? "bg-white hover:bg-gray-50 border-gray-200 hover:border-green-300 hover:shadow-lg hover:shadow-green-500/10 cursor-pointer"
+                              : "bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed"
+                          }`}
+                          title={!isValidPhoneNumber(lead?.phone) ? (!lead?.phone ? "Phone number not available" : "Invalid phone number") : ""}
                         >
-                          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                          <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${
+                            isValidPhoneNumber(lead?.phone)
+                              ? "bg-gradient-to-br from-green-500/5 to-transparent"
+                              : ""
+                          }`}></div>
                           <div className="relative flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              isValidPhoneNumber(lead?.phone)
+                                ? "bg-green-500"
+                                : "bg-gray-400"
+                            }`}>
                               <IoLogoWhatsapp className="w-4 h-4 text-white flex-shrink-0" />
                             </div>
                             <span className="font-medium text-sm">
@@ -617,13 +671,29 @@ export default function LeadCard({
                             </span>
                           </div>
                         </a>
+
+                        {/* Send Email */}
                         <a
-                          href={`mailto:${lead.email}`}
-                          className="group relative overflow-hidden bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-purple-300 rounded-2xl transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 active:scale-95 min-h-[64px] flex items-center justify-center"
+                          href={isValidEmail(lead?.email) ? `mailto:${lead.email}` : "#"}
+                          onClick={(e) => !isValidEmail(lead?.email) && e.preventDefault()}
+                          className={`group relative overflow-hidden text-gray-700 border rounded-2xl transition-all duration-300 active:scale-95 min-h-[64px] flex items-center justify-center ${
+                            isValidEmail(lead?.email)
+                              ? "bg-white hover:bg-gray-50 border-gray-200 hover:border-purple-300 hover:shadow-lg hover:shadow-purple-500/10 cursor-pointer"
+                              : "bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed"
+                          }`}
+                          title={!isValidEmail(lead?.email) ? (!lead?.email ? "Email not available" : "Invalid email address") : ""}
                         >
-                          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                          <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${
+                            isValidEmail(lead?.email)
+                              ? "bg-gradient-to-br from-purple-500/5 to-transparent"
+                              : ""
+                          }`}></div>
                           <div className="relative flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              isValidEmail(lead?.email)
+                                ? "bg-purple-500"
+                                : "bg-gray-400"
+                            }`}>
                               <MdEmail className="w-4 h-4 text-white flex-shrink-0" />
                             </div>
                             <span className="font-medium text-sm">
@@ -631,13 +701,29 @@ export default function LeadCard({
                             </span>
                           </div>
                         </a>
+
+                        {/* Send SMS */}
                         <a
-                          href={`sms:${lead.phone}`}
-                          className="group relative overflow-hidden bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-orange-300 rounded-2xl transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/10 active:scale-95 min-h-[64px] flex items-center justify-center"
+                          href={isValidPhoneNumber(lead?.phone) ? `sms:${lead.phone}` : "#"}
+                          onClick={(e) => !isValidPhoneNumber(lead?.phone) && e.preventDefault()}
+                          className={`group relative overflow-hidden text-gray-700 border rounded-2xl transition-all duration-300 active:scale-95 min-h-[64px] flex items-center justify-center ${
+                            isValidPhoneNumber(lead?.phone)
+                              ? "bg-white hover:bg-gray-50 border-gray-200 hover:border-orange-300 hover:shadow-lg hover:shadow-orange-500/10 cursor-pointer"
+                              : "bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed"
+                          }`}
+                          title={!isValidPhoneNumber(lead?.phone) ? (!lead?.phone ? "Phone number not available" : "Invalid phone number") : ""}
                         >
-                          <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                          <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${
+                            isValidPhoneNumber(lead?.phone)
+                              ? "bg-gradient-to-br from-orange-500/5 to-transparent"
+                              : ""
+                          }`}></div>
                           <div className="relative flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              isValidPhoneNumber(lead?.phone)
+                                ? "bg-orange-500"
+                                : "bg-gray-400"
+                            }`}>
                               <FaMessage className="w-4 h-4 text-white flex-shrink-0" />
                             </div>
                             <span className="font-medium text-sm">

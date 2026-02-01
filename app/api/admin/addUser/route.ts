@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 
 import clientPromise from "@/lib/mongodb";
 import { isEmailTaken } from "@/lib/multitenancy";
+import { checkUserLimit, checkAdminLimit } from "@/lib/userLimits";
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -82,6 +83,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { name, role, status, email, password } = body;
 
+    // Convert email to lowercase for case-insensitive handling
+    const lowerEmail = email.toLowerCase().trim();
+
     // Connect to MongoDB
     const client = await clientPromise;
     if (!client) {
@@ -92,8 +96,27 @@ export async function POST(req: NextRequest) {
     const usersCollection = db.collection("users");
     const employeesCollection = db.collection("employees");
 
+    // Check user/admin limits
+    if (role === "user") {
+      const userLimitCheck = await checkUserLimit(decoded.customerId, dbName);
+      if (!userLimitCheck.allowed) {
+        return NextResponse.json(
+          { error: userLimitCheck.message },
+          { status: 403 }
+        );
+      }
+    } else if (role === "admin") {
+      const adminLimitCheck = await checkAdminLimit(decoded.customerId, dbName);
+      if (!adminLimitCheck.allowed) {
+        return NextResponse.json(
+          { error: adminLimitCheck.message },
+          { status: 403 }
+        );
+      }
+    }
+
     // Check if email already exists across all customers (global uniqueness)
-    const emailTaken = await isEmailTaken(email);
+    const emailTaken = await isEmailTaken(lowerEmail);
 
     if (emailTaken) {
       return NextResponse.json(
@@ -121,8 +144,9 @@ export async function POST(req: NextRequest) {
       name,
       role,
       status: status || "active",
-      email,
+      email: lowerEmail,
       password: hashedPassword,
+      passwordChanged: false,  // Force password change on first login
       totpSecret: totpSecret.base32,
       totpEnabled: false,
       createdAt: now,
@@ -154,7 +178,7 @@ export async function POST(req: NextRequest) {
       userId: userId,
       employeeId: employeeId,
       fullName: name,
-      email: email,
+      email: lowerEmail,
       createdAt: now,
       updatedAt: now,
       isVerified: false,

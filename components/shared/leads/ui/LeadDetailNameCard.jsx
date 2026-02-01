@@ -1,5 +1,6 @@
 import { SiHomebridge } from "react-icons/si";
 import StatusChip from "./StatusChip";
+import SourceBadge from "./SourceBadge";
 
 const STATUS_STICKER_ALIAS = {
   InProgress: "Interested",
@@ -51,6 +52,8 @@ export default function LeadDetailNameCard({ lead }) {
                 {lead.email}
               </p>
             </div>
+            {/* Source Badge Inside Card */}
+            {lead?.source && <SourceBadge source={lead.source} size="sm" />}
           </div>
         </div>
 

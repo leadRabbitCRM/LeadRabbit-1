@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 
 import { Providers } from "./providers";
 import AuthProvider from "./session-provider";
+import { InactivityLogoutProvider } from "./InactivityLogoutProvider";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 
@@ -122,9 +123,11 @@ export default function RootLayout({
       <body className="text-foreground antialiased bg-[#f7f7f7] font-poppins">
         <AuthProvider>
           <Providers themeProps={{ attribute: "class", defaultTheme: "light" }}>
-            {children}
-            {/* <PWAInstallPrompt /> */}
-            <ServiceWorkerRegistration />
+            <InactivityLogoutProvider>
+              {children}
+              {/* <PWAInstallPrompt /> */}
+              <ServiceWorkerRegistration />
+            </InactivityLogoutProvider>
           </Providers>
         </AuthProvider>
       </body>

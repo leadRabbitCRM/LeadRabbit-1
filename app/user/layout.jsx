@@ -47,6 +47,71 @@ export default function UserLayout({ children }) {
   const [leads, setLeads] = useState([]);
   const [userProfile, setUserProfile] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // Handle browser back button
+  useEffect(() => {
+    // Track if we've set up the initial history
+    let historyLength = window.history.length;
+    
+    // Push a new state immediately when component mounts
+    window.history.pushState({ preventBack: true }, "");
+    
+    const handlePopState = (event) => {
+      // Prevent the back navigation
+      event.preventDefault();
+      
+      // Check if we're trying to go back from the user area
+      if (event.state?.preventBack || historyLength <= 1) {
+        // Show confirmation dialog
+        setShowLogoutConfirm(true);
+        // Push state again to stay on the page
+        window.history.pushState({ preventBack: true }, "");
+        return;
+      }
+      
+      // If not our special state, allow normal back navigation
+      window.history.back();
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  // Handle logout confirmation
+  const handleConfirmLogout = useCallback(async () => {
+    setShowLogoutConfirm(false);
+    setIsLoggingOut(true);
+    try {
+      const response = await fetch("/api/logout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Logout failed with status ${response.status}`);
+      }
+
+      // Navigate to login page
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 100);
+    } catch (error) {
+      console.error("Failed to logout", error);
+      setIsLoggingOut(false);
+      alert("Logout failed. Please try again.");
+    }
+  }, []);
+
+  const handleCancelLogout = useCallback(() => {
+    setShowLogoutConfirm(false);
+  }, []);
+
 
   // Fetch user profile and leads data
   useEffect(() => {
@@ -94,29 +159,8 @@ export default function UserLayout({ children }) {
 
   // Handle logout
   const handleLogout = useCallback(async () => {
-    if (isLoggingOut) return;
-
-    setIsLoggingOut(true);
-    try {
-      const response = await fetch("/api/logout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Logout failed with status ${response.status}`);
-      }
-
-      router.push("/login");
-      router.refresh();
-    } catch (error) {
-      console.error("Failed to logout", error);
-    } finally {
-      setIsLoggingOut(false);
-    }
-  }, [isLoggingOut, router]);
+    setShowLogoutConfirm(true);
+  }, []);
 
   // Handle menu actions
   const handleMenuAction = useCallback(
@@ -209,6 +253,38 @@ export default function UserLayout({ children }) {
           sharedFilterRef: filterButtonRef,
         })}
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end z-[100000]">
+          <div className="bg-white w-full rounded-t-2xl p-6 animate-slide-up">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-2">
+                Confirm Logout
+              </h2>
+              <p className="text-gray-600">
+                Are you sure you want to log out? You'll need to log in again to access your account.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleCancelLogout}
+                className="flex-1 px-4 py-3 rounded-lg border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 active:scale-95 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmLogout}
+                disabled={isLoggingOut}
+                className="flex-1 px-4 py-3 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoggingOut ? "Logging out..." : "Log Out"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Bottom Navigation */}
       <nav

@@ -3,6 +3,7 @@ import React, { useState, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { UserGroupIcon, FunnelIcon } from "@heroicons/react/24/solid";
 import { Button } from "@heroui/react";
+import axios from "@/lib/axios";
 import LeadManager from "../../../components/shared/leads/LeadManager";
 import Filter from "../../../components/shared/leads/ui/Filter";
 
@@ -12,7 +13,40 @@ export default function AllLeadsContent() {
   const filterButtonRef = useRef(null);
   const [filters, setFilters] = useState({});
   const [leads, setLeads] = useState([]);
+  const [favorites, setFavorites] = useState([]);
   const leadsFilterFetchRef = useRef(false);
+
+  // Load favorites from database
+  React.useEffect(() => {
+    const loadFavorites = async () => {
+      try {
+        const response = await axios.get("leads/favorites");
+        const loadedFavorites = response.data?.favorites || [];
+        console.log("✅ Favorites loaded from database:", loadedFavorites);
+        setFavorites(loadedFavorites);
+      } catch (error) {
+        console.error("❌ Error loading favorites:", error);
+        setFavorites([]);
+      }
+    };
+
+    loadFavorites();
+
+    // Listen for visibility change to reload when returning to tab
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        loadFavorites();
+      }
+    });
+
+    return () => {
+      document.removeEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          loadFavorites();
+        }
+      });
+    };
+  }, []);
 
   // Load leads data for filter autocomplete - only once
   React.useEffect(() => {
@@ -74,6 +108,32 @@ export default function AllLeadsContent() {
     }
   };
 
+  // Toggle favorite
+  const handleToggleFavorite = useCallback((leadId) => {
+    console.log("📌 Toggle favorite clicked - leadId:", leadId);
+    setFavorites((prevFavorites) => {
+      const isFavorite = prevFavorites.includes(leadId);
+      const action = isFavorite ? "remove" : "add";
+      
+      // Call API to update database
+      axios.post("leads/favorites", { leadId, action })
+        .then((response) => {
+          const updatedFavorites = response.data?.favorites || [];
+          console.log("💾 Favorites saved to database:", updatedFavorites);
+          setFavorites(updatedFavorites);
+        })
+        .catch((error) => {
+          console.error("❌ Error updating favorites:", error);
+        });
+
+      // Optimistic update for UI
+      const newFavorites = isFavorite
+        ? prevFavorites.filter((id) => id !== leadId)
+        : [...prevFavorites, leadId];
+      return newFavorites;
+    });
+  }, []);
+
   return (
     <div className="bg-gray-50">
       {/* Hidden Filter Component - Only for triggering modal */}
@@ -133,6 +193,8 @@ export default function AllLeadsContent() {
           hideHeader={true}
           externalFilters={filters}
           onClearFilters={handleClearFilters}
+          favorites={favorites}
+          onToggleFavorite={handleToggleFavorite}
         />
       </div>
     </div>

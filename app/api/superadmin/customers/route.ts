@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { customerName, adminEmail, adminPassword, metadata } = body;
+    const { customerName, adminEmail, adminPassword, maxUsers, maxAdmins, metadata } = body;
 
     // Validation
     if (!customerName || !adminEmail || !adminPassword) {
@@ -38,9 +38,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Convert email to lowercase for case-insensitive handling
+    const lowerEmail = adminEmail.toLowerCase().trim();
+
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(adminEmail)) {
+    if (!emailRegex.test(lowerEmail)) {
       return NextResponse.json(
         { error: "Invalid email format" },
         { status: 400 }
@@ -55,8 +58,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create customer
-    const result = await createCustomer(customerName, adminEmail, adminPassword, metadata);
+    // Create customer with limits
+    const result = await createCustomer(customerName, lowerEmail, adminPassword, metadata, maxUsers, maxAdmins);
 
     if (!result.success) {
       return NextResponse.json(

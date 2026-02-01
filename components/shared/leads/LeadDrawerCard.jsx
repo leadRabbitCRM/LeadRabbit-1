@@ -27,7 +27,33 @@ import LeadDetailNameCard from "./ui/LeadDetailNameCard";
 import LeadHistoryTable from "./ui/LeadHistoryTable";
 import LeadAssignment from "./ui/LeadAssignment";
 import StatusChip from "./ui/StatusChip";
+import SourceBadge from "./ui/SourceBadge";
 import axios from "@/lib/axios";
+
+// Validation functions
+const isValidEmail = (email) => {
+  // Handle undefined, null, empty strings, and whitespace
+  if (email === undefined || email === null) return false;
+  if (typeof email !== 'string') return false;
+  const trimmed = email.trim();
+  if (trimmed === '') return false;
+  
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(trimmed);
+};
+
+const isValidPhoneNumber = (phone) => {
+  // Handle undefined, null, empty strings, and whitespace
+  if (phone === undefined || phone === null) return false;
+  if (typeof phone !== 'string') return false;
+  const trimmed = phone.trim();
+  if (trimmed === '') return false;
+  
+  // Remove all non-digit characters
+  const digitsOnly = trimmed.replace(/\D/g, '');
+  // Phone should have at least 10 digits
+  return digitsOnly.length >= 10;
+};
 
 const STATUS_OPTIONS = [
   { key: "New", label: "New" },
@@ -294,7 +320,10 @@ export default function LeadCard({
 
   const handleFavoriteToggle = () => {
     if (onToggleFavorite && leadId) {
+      console.log("🔷 Favorite toggle - leadId:", leadId, "Current favorites:", favorites);
       onToggleFavorite(leadId);
+    } else {
+      console.log("❌ Favorite toggle failed - leadId:", leadId, "onToggleFavorite:", !!onToggleFavorite);
     }
   };
 
@@ -611,12 +640,22 @@ export default function LeadCard({
                     <div className="p-4 sm:p-6">
                       <div className="grid grid-cols-2 gap-3 sm:gap-4">
                         <a
-                          href={`tel:${lead.phone}`}
-                          className="group relative overflow-hidden bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-blue-300 rounded-2xl transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/10 active:scale-95 min-h-[64px] flex items-center justify-center"
+                          href={isValidPhoneNumber(lead?.phone) ? `tel:${lead.phone}` : '#'}
+                          onClick={(e) => !isValidPhoneNumber(lead?.phone) && e.preventDefault()}
+                          className={`group relative overflow-hidden rounded-2xl transition-all duration-300 min-h-[64px] flex items-center justify-center ${
+                            isValidPhoneNumber(lead?.phone)
+                              ? 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-500/10 active:scale-95 cursor-pointer'
+                              : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60'
+                          }`}
+                          title={!isValidPhoneNumber(lead?.phone) ? 'Phone number not available' : ''}
                         >
-                          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                          <div className={`absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent ${isValidPhoneNumber(lead?.phone) ? 'opacity-0 group-hover:opacity-100' : 'opacity-0'} transition-opacity duration-300`}></div>
                           <div className="relative flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              isValidPhoneNumber(lead?.phone)
+                                ? 'bg-blue-500'
+                                : 'bg-gray-400'
+                            }`}>
                               <PhoneIcon className="w-4 h-4 text-white flex-shrink-0" />
                             </div>
                             <span className="font-medium text-sm">
@@ -625,12 +664,22 @@ export default function LeadCard({
                           </div>
                         </a>
                         <a
-                          href={`https://wa.me/${lead.phone}`}
-                          className="group relative overflow-hidden bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-green-300 rounded-2xl transition-all duration-300 hover:shadow-lg hover:shadow-green-500/10 active:scale-95 min-h-[64px] flex items-center justify-center"
+                          href={isValidPhoneNumber(lead?.phone) ? `https://wa.me/${lead.phone}` : '#'}
+                          onClick={(e) => !isValidPhoneNumber(lead?.phone) && e.preventDefault()}
+                          className={`group relative overflow-hidden rounded-2xl transition-all duration-300 min-h-[64px] flex items-center justify-center ${
+                            isValidPhoneNumber(lead?.phone)
+                              ? 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-green-300 hover:shadow-lg hover:shadow-green-500/10 active:scale-95 cursor-pointer'
+                              : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60'
+                          }`}
+                          title={!isValidPhoneNumber(lead?.phone) ? 'Phone number not available' : ''}
                         >
-                          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                          <div className={`absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent ${isValidPhoneNumber(lead?.phone) ? 'opacity-0 group-hover:opacity-100' : 'opacity-0'} transition-opacity duration-300`}></div>
                           <div className="relative flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              isValidPhoneNumber(lead?.phone)
+                                ? 'bg-green-500'
+                                : 'bg-gray-400'
+                            }`}>
                               <IoLogoWhatsapp className="w-4 h-4 text-white flex-shrink-0" />
                             </div>
                             <span className="font-medium text-sm">
@@ -639,12 +688,22 @@ export default function LeadCard({
                           </div>
                         </a>
                         <a
-                          href={`mailto:${lead.email}`}
-                          className="group relative overflow-hidden bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-purple-300 rounded-2xl transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 active:scale-95 min-h-[64px] flex items-center justify-center"
+                          href={isValidEmail(lead?.email) ? `mailto:${lead.email}` : '#'}
+                          onClick={(e) => !isValidEmail(lead?.email) && e.preventDefault()}
+                          className={`group relative overflow-hidden rounded-2xl transition-all duration-300 min-h-[64px] flex items-center justify-center ${
+                            isValidEmail(lead?.email)
+                              ? 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-purple-300 hover:shadow-lg hover:shadow-purple-500/10 active:scale-95 cursor-pointer'
+                              : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60'
+                          }`}
+                          title={!isValidEmail(lead?.email) ? 'Email not available' : ''}
                         >
-                          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                          <div className={`absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent ${isValidEmail(lead?.email) ? 'opacity-0 group-hover:opacity-100' : 'opacity-0'} transition-opacity duration-300`}></div>
                           <div className="relative flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              isValidEmail(lead?.email)
+                                ? 'bg-purple-500'
+                                : 'bg-gray-400'
+                            }`}>
                               <MdEmail className="w-4 h-4 text-white flex-shrink-0" />
                             </div>
                             <span className="font-medium text-sm">
@@ -653,12 +712,22 @@ export default function LeadCard({
                           </div>
                         </a>
                         <a
-                          href={`sms:${lead.phone}`}
-                          className="group relative overflow-hidden bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-orange-300 rounded-2xl transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/10 active:scale-95 min-h-[64px] flex items-center justify-center"
+                          href={isValidPhoneNumber(lead?.phone) ? `sms:${lead.phone}` : '#'}
+                          onClick={(e) => !isValidPhoneNumber(lead?.phone) && e.preventDefault()}
+                          className={`group relative overflow-hidden rounded-2xl transition-all duration-300 min-h-[64px] flex items-center justify-center ${
+                            isValidPhoneNumber(lead?.phone)
+                              ? 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 hover:border-orange-300 hover:shadow-lg hover:shadow-orange-500/10 active:scale-95 cursor-pointer'
+                              : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60'
+                          }`}
+                          title={!isValidPhoneNumber(lead?.phone) ? 'Phone number not available' : ''}
                         >
-                          <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                          <div className={`absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent ${isValidPhoneNumber(lead?.phone) ? 'opacity-0 group-hover:opacity-100' : 'opacity-0'} transition-opacity duration-300`}></div>
                           <div className="relative flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              isValidPhoneNumber(lead?.phone)
+                                ? 'bg-orange-500'
+                                : 'bg-gray-400'
+                            }`}>
                               <FaMessage className="w-4 h-4 text-white flex-shrink-0" />
                             </div>
                             <span className="font-medium text-sm">
@@ -669,6 +738,53 @@ export default function LeadCard({
                       </div>
                     </div>
                   </div>
+
+                  {/* Original Fields Section - Facebook Only */}
+                  {displayedLead?.metaData?.originalFields && Array.isArray(displayedLead.metaData.originalFields) && displayedLead.metaData.originalFields.length > 0 && (
+                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-blue-50 to-cyan-50 px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-200">
+                        <div className="flex items-center gap-3 sm:gap-4">
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
+                            <svg
+                              className="w-5 h-5 sm:w-6 sm:h-6 text-white"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-base sm:text-lg font-medium text-gray-900">
+                              Original Fields
+                            </h3>
+                            <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                              Source data from Facebook
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-4 sm:p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {displayedLead.metaData.originalFields.map((field, index) => (
+                            <div key={`${field.name}-${index}`} className="flex flex-col gap-2 p-3 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border border-gray-200">
+                              <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                                {field.name?.replace(/_/g, ' ') || 'Field'}
+                              </span>
+                              <span className="text-sm text-gray-900 font-medium break-words">
+                                {Array.isArray(field.values) ? field.values.join(', ') : String(field.values || '')}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Lead Status Section */}
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">

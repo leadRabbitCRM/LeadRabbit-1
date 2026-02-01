@@ -214,7 +214,7 @@ export default function LeadDetailNameCard({ lead }) {
                     </div>
                   </div>
 
-                  {lead.metaData?.platform && (
+                  {(lead.metaData?.platform || lead.source === "99acres") && (
                     <div className="flex items-start gap-3">
                       <div className="w-6 h-6 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                         <svg
@@ -236,7 +236,7 @@ export default function LeadDetailNameCard({ lead }) {
                           Platform
                         </p>
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
-                          {lead.metaData.platform}
+                          {lead.source === "99acres" ? "99acres" : lead.metaData.platform}
                         </span>
                       </div>
                     </div>

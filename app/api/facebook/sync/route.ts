@@ -61,34 +61,50 @@ export async function POST(req: NextRequest) {
 
       for (const form of page.leadForms || []) {
         try {
-          // Build Facebook API URL with optional date filtering
-          let apiUrl = `https://graph.facebook.com/v18.0/${form.formId}/leads?access_token=${page.accessToken}`;
-          
-          // Add date filtering if provided
-          if (startDate && endDate) {
-            // Convert dates to Unix timestamps (Facebook API uses seconds)
-            const startTimestamp = Math.floor(new Date(startDate).getTime() / 1000);
-            const endTimestamp = Math.floor(new Date(endDate).getTime() / 1000);
-            apiUrl += `&filtering=[{"field":"time_created","operator":"GREATER_THAN","value":${startTimestamp}},{"field":"time_created","operator":"LESS_THAN","value":${endTimestamp}}]`;
-          }
-
-          // Fetch leads from Facebook API
-          const leadsResponse = await fetch(apiUrl);
-
-          const leadsData = await leadsResponse.json();
-
-          if (leadsData.error) {
-            console.error(
-              `❌ Error fetching leads for form ${form.formId}:`,
-              leadsData.error,
-            );
-            continue;
-          }
-
-          const leads = leadsData.data || [];
           let formLeadsCount = 0;
+          const allLeadIds: string[] = [];
+          let hasNextPage = true;
+          let nextCursor: string | null = null;
 
-          for (const lead of leads) {
+          // Paginate through all leads for this form
+          while (hasNextPage) {
+            // Build Facebook API URL with optional date filtering and pagination
+            let apiUrl = `https://graph.facebook.com/v18.0/${form.formId}/leads?access_token=${page.accessToken}&limit=100`;
+            
+            // Add cursor for pagination
+            if (nextCursor) {
+              apiUrl += `&after=${nextCursor}`;
+            }
+            
+            // Add date filtering if provided
+            if (startDate && endDate) {
+              // Convert dates to Unix timestamps (Facebook API uses seconds)
+              const startTimestamp = Math.floor(new Date(startDate).getTime() / 1000);
+              const endTimestamp = Math.floor(new Date(endDate).getTime() / 1000);
+              apiUrl += `&filtering=[{"field":"time_created","operator":"GREATER_THAN","value":${startTimestamp}},{"field":"time_created","operator":"LESS_THAN","value":${endTimestamp}}]`;
+            }
+
+            // Fetch leads from Facebook API
+            const leadsResponse = await fetch(apiUrl);
+
+            const leadsData = await leadsResponse.json();
+
+            if (leadsData.error) {
+              console.error(
+                `❌ Error fetching leads for form ${form.formId}:`,
+                leadsData.error,
+              );
+              break;
+            }
+
+            const leads = leadsData.data || [];
+            
+            if (leads.length === 0) {
+              hasNextPage = false;
+              break;
+            }
+
+            for (const lead of leads) {
             const metaLead: MetaLead = {
               leadId: lead.id,
               created_time: new Date(lead.created_time),
@@ -129,6 +145,15 @@ export async function POST(req: NextRequest) {
             }
 
             formLeadsCount++;
+              allLeadIds.push(lead.id);
+            }
+
+            // Check for next page
+            if (leadsData.paging?.cursors?.after) {
+              nextCursor = leadsData.paging.cursors.after;
+            } else {
+              hasNextPage = false;
+            }
           }
 
           // Store the lead count for this form
@@ -138,10 +163,10 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Update the page's lead forms with the new lead counts
+      // Update the page's lead forms with lead IDs instead of nulls
       const updatedLeadForms = (page.leadForms || []).map((form: any) => ({
         ...form,
-        leads: Array(formLeadCounts[form.formId] || 0).fill(null), // Create array with correct length
+        leads: formLeadCounts[form.formId] || 0, // Store the count directly instead of array of nulls
       }));
 
       await metaPagesCollection.updateOne(

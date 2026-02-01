@@ -43,7 +43,7 @@ export function ModernWidget({
   const colors = colorConfig[color] || colorConfig.blue;
 
   // Generate smooth wave chart data - seeded by label for consistency
-  const generateWaveData = () => {
+  const generateWaveData = React.useCallback(() => {
     const points = 25;
     const seed = label
       .split("")
@@ -53,12 +53,13 @@ export function ModernWidget({
       const wave2 = Math.cos((seed + i) * 0.2) * 15;
       return 50 + wave1 + wave2;
     });
-  };
+  }, [label]);
 
-  const chartData = React.useMemo(() => generateWaveData(), [label]);
+  const chartData = React.useMemo(() => generateWaveData(), [generateWaveData]);
 
-  // Generate smooth SVG path
-  const generatePath = (data) => {
+  // Generate smooth SVG path - memoized to prevent hydration mismatch
+  const pathData = React.useMemo(() => {
+    const data = chartData;
     const width = 100;
     const height = 40;
     const points = data.map((value, index) => ({
@@ -78,7 +79,7 @@ export function ModernWidget({
       }
     }
     return path;
-  };
+  }, [chartData]);
 
   return (
     <div className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow duration-200">
@@ -112,6 +113,7 @@ export function ModernWidget({
           viewBox="0 0 100 40"
           preserveAspectRatio="none"
           className="w-full h-full"
+          suppressHydrationWarning
         >
           <defs>
             <linearGradient
@@ -127,13 +129,13 @@ export function ModernWidget({
           </defs>
           {/* Area fill with gradient only - no black */}
           <path
-            d={`${generatePath(chartData)} L 100,40 L 0,40 Z`}
+            d={`${pathData} L 100,40 L 0,40 Z`}
             fill={`url(#gradient-${label.replace(/\s/g, "-")})`}
             stroke="none"
           />
           {/* Line stroke */}
           <path
-            d={generatePath(chartData)}
+            d={pathData}
             fill="none"
             stroke={colors.chart}
             strokeWidth="1.5"

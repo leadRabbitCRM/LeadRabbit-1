@@ -8,6 +8,7 @@ import {
   StarIcon,
   UserIcon,
   LinkIcon,
+  HeartIcon,
 } from "@heroicons/react/24/outline";
 import {
   HomeIcon as HomeIconSolid,
@@ -59,6 +60,44 @@ export default function AdminLayout({
   const pathname = usePathname();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // Handle browser back button - only on /admin page
+  useEffect(() => {
+    // Only enable back button confirmation on the main admin dashboard
+    if (pathname !== "/admin") {
+      return;
+    }
+
+    // Track if we've set up the initial history
+    let historyLength = window.history.length;
+    
+    // Push a new state immediately when component mounts
+    window.history.pushState({ preventBack: true }, "");
+    
+    const handlePopState = (event: PopStateEvent) => {
+      // Prevent the back navigation
+      event.preventDefault();
+      
+      // Check if we're trying to go back from the admin area
+      if ((event.state as any)?.preventBack || historyLength <= 1) {
+        // Show confirmation dialog
+        setShowLogoutConfirm(true);
+        // Push state again to stay on the page
+        window.history.pushState({ preventBack: true }, "");
+        return;
+      }
+      
+      // If not our special state, allow normal back navigation
+      window.history.back();
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [pathname]);
 
   // Fetch user profile
   useEffect(() => {
@@ -73,10 +112,9 @@ export default function AdminLayout({
     fetchProfile();
   }, []);
 
-  // Handle logout
-  const handleLogout = useCallback(async () => {
-    if (isLoggingOut) return;
-
+  // Handle logout confirmation
+  const handleConfirmLogout = useCallback(async () => {
+    setShowLogoutConfirm(false);
     setIsLoggingOut(true);
     try {
       const response = await fetch("/api/logout", {
@@ -90,14 +128,25 @@ export default function AdminLayout({
         throw new Error(`Logout failed with status ${response.status}`);
       }
 
-      router.push("/login");
-      router.refresh();
+      // Navigate to login page
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 100);
     } catch (error) {
       console.error("Failed to logout", error);
-    } finally {
       setIsLoggingOut(false);
+      alert("Logout failed. Please try again.");
     }
-  }, [isLoggingOut, router]);
+  }, []);
+
+  const handleCancelLogout = useCallback(() => {
+    setShowLogoutConfirm(false);
+  }, []);
+
+  // Handle logout
+  const handleLogout = useCallback(async () => {
+    setShowLogoutConfirm(true);
+  }, []);
 
   // Handle menu actions
   const handleMenuAction = useCallback(
@@ -108,6 +157,10 @@ export default function AdminLayout({
       }
       if (key === "settings") {
         router.push("/admin/profile");
+        return;
+      }
+      if (key === "favorites") {
+        router.push("/admin/favorites");
         return;
       }
       if (key === "team_settings") {
@@ -262,10 +315,10 @@ export default function AdminLayout({
                     <p>My Profile</p>
                   </div>
                 </DropdownItem>
-                <DropdownItem key="team_settings">
+                <DropdownItem key="favorites">
                   <div className="flex items-center gap-2">
-                    <ClipboardDocumentCheckIcon className="w-5 text-slate-400" />
-                    <p>Admin Tasks</p>
+                    <HeartIcon className="w-5 text-slate-400" />
+                    <p>Favourite</p>
                   </div>
                 </DropdownItem>
                 <DropdownItem key="logout" color="danger">
@@ -321,6 +374,37 @@ export default function AdminLayout({
           </div>
         </div>
       </nav>
+
+      {/* Logout Confirmation Dialog */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end z-[100000]">
+          <div className="bg-white w-full rounded-t-2xl p-6 animate-slide-up">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-2">
+                Confirm Logout
+              </h2>
+              <p className="text-gray-600">
+                Are you sure you want to log out? You'll need to log in again to access your account.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleCancelLogout}
+                className="flex-1 px-4 py-3 rounded-lg border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 active:scale-95 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmLogout}
+                disabled={isLoggingOut}
+                className="flex-1 px-4 py-3 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoggingOut ? "Logging out..." : "Log Out"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

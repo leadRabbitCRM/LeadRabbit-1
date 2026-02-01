@@ -11,17 +11,36 @@ export default function UserAllLeadsPage() {
   const [filters, setFilters] = useState({});
   const [leads, setLeads] = useState([]);
   const [favorites, setFavorites] = useState([]);
-
-  // Load favorites from localStorage
+  // Load favorites from database
   React.useEffect(() => {
-    const storedFavorites = localStorage.getItem("leadRabbit_favorites");
-    if (storedFavorites) {
+    const loadFavorites = async () => {
       try {
-        setFavorites(JSON.parse(storedFavorites));
+        const response = await axios.get("leads/favorites");
+        const loadedFavorites = response.data?.favorites || [];
+        console.log("✅ Favorites loaded from database:", loadedFavorites);
+        setFavorites(loadedFavorites);
       } catch (error) {
-        console.error("Error parsing favorites:", error);
+        console.error("❌ Error loading favorites:", error);
+        setFavorites([]);
       }
-    }
+    };
+
+    loadFavorites();
+
+    // Listen for visibility change to reload when returning to tab
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        loadFavorites();
+      }
+    });
+
+    return () => {
+      document.removeEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          loadFavorites();
+        }
+      });
+    };
   }, []);
 
   // Fetch leads data for filter autocomplete
@@ -92,14 +111,26 @@ export default function UserAllLeadsPage() {
 
   // Toggle favorite
   const handleToggleFavorite = useCallback((leadId) => {
+    console.log("📌 Toggle favorite clicked - leadId:", leadId);
     setFavorites((prevFavorites) => {
-      const newFavorites = prevFavorites.includes(leadId)
+      const isFavorite = prevFavorites.includes(leadId);
+      const action = isFavorite ? "remove" : "add";
+      
+      // Call API to update database
+      axios.post("leads/favorites", { leadId, action })
+        .then((response) => {
+          const updatedFavorites = response.data?.favorites || [];
+          console.log("💾 Favorites saved to database:", updatedFavorites);
+          setFavorites(updatedFavorites);
+        })
+        .catch((error) => {
+          console.error("❌ Error updating favorites:", error);
+        });
+
+      // Optimistic update for UI
+      const newFavorites = isFavorite
         ? prevFavorites.filter((id) => id !== leadId)
         : [...prevFavorites, leadId];
-      localStorage.setItem(
-        "leadRabbit_favorites",
-        JSON.stringify(newFavorites),
-      );
       return newFavorites;
     });
   }, []);
