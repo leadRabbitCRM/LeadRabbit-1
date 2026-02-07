@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
       // Mark as no longer fresh after first successful login
       await usersCollection.updateOne(
         { email: lowerEmail },
-        { $set: { isFreshAccount: false, isOnline: true, lastLogin: new Date() } }
+        { $set: { isFreshAccount: false, isOnline: true, status: "active", lastLogin: new Date() } }
       );
 
       // Create JWT token and allow login
@@ -224,7 +224,7 @@ export async function POST(req: NextRequest) {
         // Enable TOTP
         await usersCollection.updateOne(
           { email: lowerEmail },
-          { $set: { totpEnabled: true, isOnline: true, lastLogin: new Date() } }
+          { $set: { totpEnabled: true, isOnline: true, status: "active", lastLogin: new Date() } }
         );
 
         // Create JWT token
@@ -319,7 +319,7 @@ export async function POST(req: NextRequest) {
         // Update last login
         await usersCollection.updateOne(
           { email: lowerEmail },
-          { $set: { isOnline: true, lastLogin: new Date() } }
+          { $set: { isOnline: true, status: "active", lastLogin: new Date() } }
         );
 
         // Create JWT token
@@ -408,7 +408,7 @@ export async function POST(req: NextRequest) {
 
     await usersCollection.findOneAndUpdate(
       { email: lowerEmail },
-      { $set: { isOnline: true, lastLogin: new Date() }, $unset: { passwordResetRequired: "" } },
+      { $set: { isOnline: true, status: "active", lastLogin: new Date() }, $unset: { passwordResetRequired: "" } },
       { returnDocument: "after" }
     );
 

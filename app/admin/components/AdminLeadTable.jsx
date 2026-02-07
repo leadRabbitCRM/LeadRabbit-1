@@ -26,7 +26,15 @@ import {
   SelectItem,
 } from "@heroui/react";
 import { EyeIcon } from "@heroicons/react/24/solid";
-import { ChevronDownIcon } from "@heroicons/react/24/outline";
+import { 
+  ChevronDownIcon,
+  ClipboardDocumentListIcon, 
+  UserIcon, 
+  TagIcon, 
+  ArrowUpTrayIcon, 
+  PencilIcon, 
+  TrashIcon 
+} from "@heroicons/react/24/outline";
 import axios from "@/lib/axios";
 import AdminLeadDetailModal from "./AdminLeadDetailModal";
 
@@ -607,7 +615,10 @@ export default function AdminLeadTable({
                 </DropdownTrigger>
                 <DropdownMenu>
                   <DropdownItem key="view" onPress={() => handleViewLead(lead)}>
-                    📋 View Details
+                    <div className="flex items-center gap-2">
+                      <ClipboardDocumentListIcon className="w-4 h-4" />
+                      View Details
+                    </div>
                   </DropdownItem>
                   <DropdownItem
                     key="assign"
@@ -615,7 +626,10 @@ export default function AdminLeadTable({
                     color="primary"
                     onPress={() => openConfirmationModal("assign", lead)}
                   >
-                    👤 {lead.assignedTo ? "Reassign Lead" : "Assign Lead"}
+                    <div className="flex items-center gap-2">
+                      <UserIcon className="w-4 h-4" />
+                      {lead.assignedTo ? "Reassign Lead" : "Assign Lead"}
+                    </div>
                   </DropdownItem>
                   <DropdownItem
                     key="status"
@@ -623,7 +637,10 @@ export default function AdminLeadTable({
                     color="secondary"
                     onPress={() => openConfirmationModal("status", lead)}
                   >
-                    🏷️ Change Status
+                    <div className="flex items-center gap-2">
+                      <TagIcon className="w-4 h-4" />
+                      Change Status
+                    </div>
                   </DropdownItem>
                   <DropdownItem
                     key="export"
@@ -631,7 +648,10 @@ export default function AdminLeadTable({
                     color="success"
                     onPress={() => openConfirmationModal("export", lead)}
                   >
-                    📤 Export Data
+                    <div className="flex items-center gap-2">
+                      <ArrowUpTrayIcon className="w-4 h-4" />
+                      Export Data
+                    </div>
                   </DropdownItem>
                   <DropdownItem
                     key="edit"
@@ -639,7 +659,10 @@ export default function AdminLeadTable({
                     color="warning"
                     onPress={() => openConfirmationModal("edit", lead)}
                   >
-                    ✏️ Edit Lead
+                    <div className="flex items-center gap-2">
+                      <PencilIcon className="w-4 h-4" />
+                      Edit Lead
+                    </div>
                   </DropdownItem>
                   <DropdownItem
                     key="delete"
@@ -647,7 +670,10 @@ export default function AdminLeadTable({
                     color="danger"
                     onPress={() => openConfirmationModal("delete", lead)}
                   >
-                    🗑️ Delete Lead
+                    <div className="flex items-center gap-2">
+                      <TrashIcon className="w-4 h-4" />
+                      Delete Lead
+                    </div>
                   </DropdownItem>
                 </DropdownMenu>
               </Dropdown>

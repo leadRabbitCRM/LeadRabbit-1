@@ -195,11 +195,12 @@ const Filter = forwardRef(
           placement="center"
           backdrop="blur"
           size="2xl"
+          scrollBehavior="inside"
           classNames={{
-            base: "bg-white",
-            header: "border-b border-gray-100",
-            body: "py-6",
-            footer: "border-t border-gray-100",
+            base: "bg-white max-h-[calc(100vh-150px)]",
+            header: "border-b border-gray-100 sticky top-0 z-10",
+            body: "py-6 overflow-y-auto",
+            footer: "border-t border-gray-100 sticky bottom-0 z-20 bg-white",
           }}
         >
           <ModalContent>

@@ -21,12 +21,14 @@ export async function POST(req: NextRequest) {
     const secret = process.env.JWT_SECRET;
 
     let email: string | undefined;
+    let dbName: string | undefined;
 
     if (token && secret) {
       try {
-        const decoded = jwt.verify(token, secret) as { email?: string };
+        const decoded = jwt.verify(token, secret) as { email?: string; dbName?: string };
 
         email = decoded.email;
+        dbName = decoded.dbName;
       } catch (error) {
         console.error("Failed to verify token during logout", error);
       }
@@ -47,15 +49,22 @@ export async function POST(req: NextRequest) {
       if (!client) {
         return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
       }
-      const db = client!.db(process.env.DB_NAME);
+      
+      // Use the database name from the token (multi-tenant) or fall back to default
+      const databaseName = dbName || process.env.DB_NAME;
+      const db = client!.db(databaseName);
 
-      await db
+      console.log(`Logging out user ${email} from database ${databaseName}`);
+
+      const result = await db
         .collection("users")
         .findOneAndUpdate(
           { email },
-          { $set: { isOnline: false } },
+          { $set: { isOnline: false, status: "inactive" } },
           { returnDocument: "after" },
         );
+      
+      console.log(`Logout update result:`, result ? "success" : "user not found");
     }
 
     const res = NextResponse.json({ message: "Logout" }, { status: 200 });

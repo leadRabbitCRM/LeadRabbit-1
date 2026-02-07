@@ -54,6 +54,24 @@ type UpdatePayload = {
   panNumber: string;
   panFile?: FilePayload | null;
   profilePhoto?: string | null;
+  education?: Array<{
+    id: number;
+    institution: string;
+    degree: string;
+    fieldOfStudy: string;
+    startYear: string;
+    endYear: string;
+    marks: string;
+  }>;
+  experience?: Array<{
+    id: number;
+    company: string;
+    position: string;
+    startDate: string;
+    endDate: string;
+    description: string;
+    isPresent: boolean;
+  }>;
 };
 
 async function resolveAuthenticatedUser(req: NextRequest) {
@@ -234,6 +252,8 @@ export async function GET(req: NextRequest) {
           aadhaarFile: employeeDoc.aadhaarFile ?? null,
           panNumber: employeeDoc.panNumber ?? "",
           panFile: employeeDoc.panFile ?? null,
+          education: employeeDoc.education ?? [],
+          experience: employeeDoc.experience ?? [],
           isVerified: parseBooleanFlag(employeeDoc.isVerified),
           createdAt: employeeDoc.createdAt ?? null,
           updatedAt: employeeDoc.updatedAt ?? null,
@@ -328,6 +348,8 @@ export async function PUT(req: NextRequest) {
       aadhaarFile: payload.aadhaarFile ?? existingEmployee?.aadhaarFile ?? null,
       panNumber: payload.panNumber,
       panFile: payload.panFile ?? existingEmployee?.panFile ?? null,
+      education: payload.education ?? existingEmployee?.education ?? [],
+      experience: payload.experience ?? existingEmployee?.experience ?? [],
       isVerified,
       updatedAt: now,
     };
@@ -355,6 +377,8 @@ export async function PUT(req: NextRequest) {
           highestQualification: payload.highestQualification,
           aadhaarNumber: payload.aadhaarNumber,
           panNumber: payload.panNumber,
+          education: payload.education ?? [],
+          experience: payload.experience ?? [],
           isVerified,
           profileCompleted: true,
           updatedAt: now,

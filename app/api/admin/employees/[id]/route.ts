@@ -275,6 +275,8 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
             aadhaarFile: employeeDoc.aadhaarFile ?? null,
             panNumber: employeeDoc.panNumber ?? "",
             panFile: employeeDoc.panFile ?? null,
+            education: employeeDoc.education ?? [],
+            experience: employeeDoc.experience ?? [],
             isVerified: parseBooleanFlag(employeeDoc.isVerified),
             createdAt: employeeDoc.createdAt ?? null,
             updatedAt: employeeDoc.updatedAt ?? null,
@@ -598,12 +600,151 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
               aadhaarFile: updatedEmployeeDoc.aadhaarFile ?? null,
               panNumber: updatedEmployeeDoc.panNumber ?? "",
               panFile: updatedEmployeeDoc.panFile ?? null,
+              education: updatedEmployeeDoc.education ?? [],
+              experience: updatedEmployeeDoc.experience ?? [],
               isVerified: parseBooleanFlag(updatedEmployeeDoc.isVerified),
               createdAt: updatedEmployeeDoc.createdAt ?? null,
               updatedAt: updatedEmployeeDoc.updatedAt ?? null,
               verifiedAt: updatedEmployeeDoc.verifiedAt ?? null,
             }
           : null,
+      });
+    }
+
+    if (action === "update-profile") {
+      const profileData = body?.profileData ?? {};
+      
+      const employeeDoc = await employeesCollection.findOne({ userId });
+      const userDoc = await usersCollection.findOne({ _id: userId });
+
+      if (!employeeDoc || !userDoc) {
+        return NextResponse.json(
+          { error: "Employee not found" },
+          { status: 404 },
+        );
+      }
+
+      // Check for duplicate email if email is being changed
+      if (profileData.email) {
+        const normalizedEmail = normalizeString(profileData.email).toLowerCase();
+        
+        if (!EMAIL_REGEX.test(normalizedEmail)) {
+          return NextResponse.json(
+            { error: "A valid email address is required." },
+            { status: 400 },
+          );
+        }
+
+        // Compare both emails in lowercase to avoid case-sensitivity issues
+        const currentEmail = (userDoc.email || "").toLowerCase();
+        
+        console.log('Email comparison:', {
+          normalizedEmail,
+          currentEmail,
+          areEqual: normalizedEmail === currentEmail
+        });
+        
+        if (normalizedEmail !== currentEmail) {
+          // Escape special regex characters in email
+          const escapedEmail = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          
+          // Use case-insensitive regex query for MongoDB
+          const existingUser = await usersCollection.findOne({
+            email: { $regex: new RegExp(`^${escapedEmail}$`, 'i') },
+            _id: { $ne: userId },
+          });
+
+          console.log('Duplicate check result:', existingUser ? 'Found duplicate' : 'No duplicate');
+
+          if (existingUser) {
+            return NextResponse.json(
+              { error: "Another user already uses this email address." },
+              { status: 409 },
+            );
+          }
+        }
+      }
+
+      const now = new Date();
+      const employeeUpdate: Record<string, unknown> = {
+        updatedAt: now,
+      };
+
+      const userUpdate: Record<string, unknown> = {
+        updatedAt: now,
+      };
+
+      // Handle profile fields
+      if (profileData.email) {
+        const normalizedEmail = normalizeString(profileData.email).toLowerCase();
+        employeeUpdate.email = normalizedEmail;
+        userUpdate.email = normalizedEmail;
+      }
+      if (profileData.fullName) {
+        employeeUpdate.fullName = profileData.fullName;
+        userUpdate.name = profileData.fullName;
+      }
+      if (profileData.mobileNumber) {
+        employeeUpdate.mobileNumber = profileData.mobileNumber;
+        userUpdate.mobileNumber = profileData.mobileNumber;
+      }
+      if (profileData.gender) {
+        employeeUpdate.gender = profileData.gender;
+      }
+      if (profileData.dateOfBirth) {
+        employeeUpdate.dateOfBirth = profileData.dateOfBirth;
+      }
+      if (profileData.highestQualification) {
+        employeeUpdate.highestQualification = profileData.highestQualification;
+        userUpdate.highestQualification = profileData.highestQualification;
+      }
+      if (profileData.currentAddress) {
+        employeeUpdate.currentAddress = profileData.currentAddress;
+        userUpdate.currentAddress = profileData.currentAddress;
+      }
+      if (profileData.permanentAddress) {
+        employeeUpdate.permanentAddress = profileData.permanentAddress;
+        userUpdate.permanentAddress = profileData.permanentAddress;
+      }
+      if (profileData.aadhaarNumber) {
+        employeeUpdate.aadhaarNumber = profileData.aadhaarNumber;
+        userUpdate.aadhaarNumber = profileData.aadhaarNumber;
+      }
+      if (profileData.panNumber) {
+        employeeUpdate.panNumber = profileData.panNumber;
+        userUpdate.panNumber = profileData.panNumber;
+      }
+
+      // Handle profile photo
+      if (profileData.profilePhoto) {
+        userUpdate.avatar = profileData.profilePhoto;
+      }
+
+      // Handle file uploads
+      if (profileData.aadhaarFile) {
+        employeeUpdate.aadhaarFile = profileData.aadhaarFile;
+      }
+      if (profileData.panFile) {
+        employeeUpdate.panFile = profileData.panFile;
+      }
+
+      // Handle education and experience
+      if (profileData.education) {
+        employeeUpdate.education = profileData.education;
+        userUpdate.education = profileData.education;
+      }
+      if (profileData.experience) {
+        employeeUpdate.experience = profileData.experience;
+        userUpdate.experience = profileData.experience;
+      }
+
+      await Promise.all([
+        usersCollection.updateOne({ _id: userId }, { $set: userUpdate }),
+        employeesCollection.updateOne({ userId }, { $set: employeeUpdate }),
+      ]);
+
+      return NextResponse.json({
+        message: "Profile updated successfully",
       });
     }
 
@@ -643,6 +784,7 @@ export async function DELETE(req: NextRequest, { params }: RouteContext) {
 
     const userId = new ObjectId(id);
     const employeesCollection = db.collection("employees");
+    const leadsCollection = db.collection("leads");
 
     // Fetch the user to get their email
     const userToDelete = await usersCollection.findOne({ _id: userId });
@@ -666,6 +808,23 @@ export async function DELETE(req: NextRequest, { params }: RouteContext) {
       );
     }
 
+    // First, unassign all leads that were assigned to this employee
+    // This preserves the leads but removes the reference to the deleted employee
+    if (userToDelete.email) {
+      const leadsUpdate = await leadsCollection.updateMany(
+        { assignedTo: userToDelete.email },
+        { 
+          $set: { 
+            assignedTo: "",
+            unassignedAt: new Date(),
+            unassignedReason: "Employee account deleted"
+          } 
+        }
+      );
+      console.log(`Unassigned ${leadsUpdate.modifiedCount} leads from deleted employee`);
+    }
+
+    // Then delete the employee and user records
     const [userResult, employeeResult] = await Promise.all([
       usersCollection.deleteOne({ _id: userId }),
       employeesCollection.deleteOne({ userId }),

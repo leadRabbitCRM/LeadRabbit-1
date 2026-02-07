@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { UserGroupIcon, FunnelIcon } from "@heroicons/react/24/solid";
+import { UserGroupIcon, FunnelIcon, ArrowPathIcon } from "@heroicons/react/24/solid";
 import { Button } from "@heroui/react";
 import axios from "@/lib/axios";
 import LeadManager from "../../../components/shared/leads/LeadManager";
@@ -11,9 +11,11 @@ export default function AllLeadsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const filterButtonRef = useRef(null);
+  const leadManagerRef = useRef(null);
   const [filters, setFilters] = useState({});
   const [leads, setLeads] = useState([]);
   const [favorites, setFavorites] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const leadsFilterFetchRef = useRef(false);
 
   // Load favorites from database
@@ -108,6 +110,27 @@ export default function AllLeadsContent() {
     }
   };
 
+  // Handle refresh
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      // Trigger refresh in LeadManager
+      if (leadManagerRef.current?.refetch) {
+        await leadManagerRef.current.refetch();
+      }
+      
+      // Also refresh favorites
+      const response = await axios.get("leads/favorites");
+      const loadedFavorites = response.data?.favorites || [];
+      setFavorites(loadedFavorites);
+      console.log("✅ Data refreshed successfully");
+    } catch (error) {
+      console.error("❌ Error refreshing data:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
+
   // Toggle favorite
   const handleToggleFavorite = useCallback((leadId) => {
     console.log("📌 Toggle favorite clicked - leadId:", leadId);
@@ -178,6 +201,21 @@ export default function AllLeadsContent() {
                 </div>
               </Button>
 
+              {/* Refresh Button */}
+              <Button
+                isIconOnly
+                variant="flat"
+                className={`bg-white/20 backdrop-blur-sm text-white border-0 hover:bg-white/30 transition-all duration-200 ${
+                  isRefreshing ? "opacity-60" : ""
+                }`}
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+              >
+                <ArrowPathIcon
+                  className={`w-5 h-5 ${isRefreshing ? "animate-spin" : ""}`}
+                />
+              </Button>
+
               <div className="bg-white/20 backdrop-blur-sm rounded-xl p-2 text-white">
                 <UserGroupIcon className="w-6 h-6" />
               </div>
@@ -189,6 +227,7 @@ export default function AllLeadsContent() {
       {/* Content */}
       <div className="px-3 pb-6">
         <LeadManager
+          ref={leadManagerRef}
           isAdmin={true}
           hideHeader={true}
           externalFilters={filters}

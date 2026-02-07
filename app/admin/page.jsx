@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import AdminLeads from "./components/AdminLeads";
-import { ModernWidget } from "../../components/ui/ModernWidget";
+import Dashboard from "../../components/shared/Dashboard";
 import axios from "@/lib/axios";
 import { useRouter } from "next/navigation";
 import {
@@ -38,18 +38,6 @@ import {
 export default function AdminDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [stats, setStats] = useState({
-    totalLeads: "0",
-    newLeads: "0",
-    interestedLeads: "0",
-    notInterestedLeads: "0",
-    dealClosedLeads: "0",
-    assignedLeads: "0",
-    unassignedLeads: "0",
-    totalUsers: "0",
-  });
-  const [previousStats, setPreviousStats] = useState(null);
-  const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [favorites, setFavorites] = useState([]);
   const [leads, setLeads] = useState([]);
   const [userProfile, setUserProfile] = useState(null);
@@ -80,91 +68,17 @@ export default function AdminDashboard() {
     fetchProfile();
   }, []);
 
-  // Fetch leads and calculate stats
+  // Fetch leads for favorites
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchLeads = async () => {
       try {
-        setIsLoadingStats(true);
-
-        // Verify admin role
-        const profileResponse = await axios.get("me");
-        const userRole = profileResponse.data?.role;
-
-        if (userRole !== "admin") {
-          setIsLoadingStats(false);
-          return;
-        }
-
-        // Fetch all leads for admin
         const response = await axios.get("/leads/getAllLeads");
-        const leadsData = response.data || [];
-        setLeads(leadsData);
-
-        // Calculate current stats
-        const totalLeads = leadsData.length;
-        const newLeads = leadsData.filter(
-          (lead) => lead.status === "New",
-        ).length;
-        const interestedLeads = leadsData.filter(
-          (lead) => lead.status === "Interested",
-        ).length;
-        const notInterestedLeads = leadsData.filter(
-          (lead) => lead.status === "Not Interested",
-        ).length;
-        const dealClosedLeads = leadsData.filter(
-          (lead) => lead.status === "Deal",
-        ).length;
-        const assignedLeads = leadsData.filter(
-          (lead) => lead.assignedTo,
-        ).length;
-        const unassignedLeads = leadsData.filter(
-          (lead) => !lead.assignedTo,
-        ).length;
-
-        // Fetch employee count (all users including admins)
-        let totalUsers = 0;
-        try {
-          const employeesResponse = await axios.get("admin/addUser");
-          totalUsers = employeesResponse.data?.users?.length || 0;
-        } catch (error) {
-          console.error("Error fetching employees:", error);
-        }
-
-        const currentStats = {
-          totalLeads: totalLeads.toString(),
-          newLeads: newLeads.toString(),
-          interestedLeads: interestedLeads.toString(),
-          notInterestedLeads: notInterestedLeads.toString(),
-          dealClosedLeads: dealClosedLeads.toString(),
-          assignedLeads: assignedLeads.toString(),
-          unassignedLeads: unassignedLeads.toString(),
-          totalUsers: totalUsers.toString(),
-        };
-
-        setStats(currentStats);
-
-        // Store current stats for comparison next time
-        const storedStats = localStorage.getItem("adminDashboardStats");
-        if (storedStats) {
-          setPreviousStats(JSON.parse(storedStats));
-        }
-        localStorage.setItem(
-          "adminDashboardStats",
-          JSON.stringify(currentStats),
-        );
+        setLeads(response.data || []);
       } catch (error) {
-        console.error("Error fetching stats:", error);
-      } finally {
-        setIsLoadingStats(false);
+        console.error("Error fetching leads:", error);
       }
     };
-
-    fetchStats();
-
-    // Refresh stats every 30 seconds
-    const statsInterval = setInterval(fetchStats, 30000);
-
-    return () => clearInterval(statsInterval);
+    fetchLeads();
   }, []);
 
   // Get greeting based on time of day
@@ -174,42 +88,6 @@ export default function AdminDashboard() {
     if (hour < 17) return "Good Afternoon";
     return "Good Evening";
   }, []);
-
-  // Calculate trend
-  const calculateTrend = useCallback((current, previous) => {
-    if (!previous) return { percentage: 0, isPositive: true };
-
-    const curr = parseInt(current) || 0;
-    const prev = parseInt(previous) || 0;
-
-    if (prev === 0) return { percentage: 0, isPositive: true };
-
-    const percentage = Math.round(((curr - prev) / prev) * 100);
-    return {
-      percentage: Math.abs(percentage),
-      isPositive: curr >= prev,
-    };
-  }, []);
-
-  const totalLeadsTrend = previousStats
-    ? calculateTrend(stats.totalLeads, previousStats.totalLeads)
-    : null;
-
-  const newLeadsTrend = previousStats
-    ? calculateTrend(stats.newLeads, previousStats.newLeads)
-    : null;
-
-  const interestedLeadsTrend = previousStats
-    ? calculateTrend(stats.interestedLeads, previousStats.interestedLeads)
-    : null;
-
-  const assignedLeadsTrend = previousStats
-    ? calculateTrend(stats.assignedLeads, previousStats.assignedLeads)
-    : null;
-
-  const dealClosedLeadsTrend = previousStats
-    ? calculateTrend(stats.dealClosedLeads, previousStats.dealClosedLeads)
-    : null;
 
   // Toggle favorite
   const handleToggleFavorite = useCallback((leadId) => {
@@ -275,89 +153,11 @@ export default function AdminDashboard() {
       <div>
         {/* Dashboard Tab */}
         {activeTab === "dashboard" && (
-          <div>
-            {/* Header */}
-            <div className="bg-gradient-to-br from-purple-600 via-indigo-500 to-blue-600">
-              <div className="px-4 py-8">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-purple-100 text-sm font-medium mb-1">
-                      {getGreeting()} 👋
-                    </p>
-                    <h1 className="text-2xl font-bold text-white mb-1">
-                      Admin {userProfile?.name || "Dashboard"}
-                    </h1>
-                    <p className="text-purple-100 text-sm">
-                      Complete system overview and analytics
-                    </p>
-                  </div>
-                  <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-3 text-white">
-                    <svg
-                      className="w-8 h-8"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                      />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Stats Grid */}
-            <div className="px-4 py-5">
-              <div className="grid grid-cols-2 gap-3">
-                <ModernWidget
-                  count={stats.totalLeads}
-                  label="Total Leads"
-                  trend={totalLeadsTrend}
-                  color="blue"
-                />
-                <ModernWidget
-                  count={stats.newLeads}
-                  label="New Leads"
-                  trend={newLeadsTrend}
-                  color="green"
-                />
-                <ModernWidget
-                  count={stats.assignedLeads}
-                  label="Assigned"
-                  trend={assignedLeadsTrend}
-                  color="purple"
-                />
-                <ModernWidget
-                  count={stats.unassignedLeads}
-                  label="Unassigned"
-                  color="orange"
-                />
-                <ModernWidget
-                  count={stats.interestedLeads}
-                  label="Interested"
-                  trend={interestedLeadsTrend}
-                  color="cyan"
-                />
-                <ModernWidget
-                  count={stats.totalUsers}
-                  label="Team Members"
-                  color="pink"
-                />
-                <div className="col-span-2">
-                  <ModernWidget
-                    count={stats.dealClosedLeads}
-                    label="Deals Closed"
-                    trend={dealClosedLeadsTrend}
-                    color="emerald"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+          <Dashboard 
+            userType="admin" 
+            userProfile={userProfile} 
+            getGreeting={getGreeting} 
+          />
         )}
 
         {/* All Leads Tab */}

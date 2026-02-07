@@ -17,12 +17,22 @@ export function ModernWidget({
   trend = null,
   color = "blue",
 }) {
+  const [isClient, setIsClient] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   const colorConfig = {
     blue: {
       chart: "#3B82F6",
       chartLight: "rgba(59, 130, 246, 0.15)",
     },
     green: {
+      chart: "#10B981",
+      chartLight: "rgba(16, 185, 129, 0.15)",
+    },
+    emerald: {
       chart: "#10B981",
       chartLight: "rgba(16, 185, 129, 0.15)",
     },
@@ -37,6 +47,10 @@ export function ModernWidget({
     pink: {
       chart: "#EC4899",
       chartLight: "rgba(236, 72, 153, 0.15)",
+    },
+    cyan: {
+      chart: "#06B6D4",
+      chartLight: "rgba(6, 182, 212, 0.15)",
     },
   };
 
@@ -82,25 +96,28 @@ export function ModernWidget({
   }, [chartData]);
 
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow duration-200">
+    <div className="group relative bg-gradient-to-br from-white to-gray-50 rounded-2xl p-5 shadow-lg hover:shadow-2xl border border-gray-200 transition-all duration-300 hover:-translate-y-1">
+      {/* Decorative gradient overlay */}
+      <div className="absolute top-0 right-0 w-20 h-20 opacity-10 rounded-bl-full" style={{ backgroundColor: colors.chart }} />
+      
       {/* Count and Label */}
-      <div className="mb-3">
-        <h3 className="text-2xl font-bold text-gray-900 mb-0.5">{count}</h3>
-        <p className="text-xs font-medium text-gray-500">{label}</p>
+      <div className="relative mb-3">
+        <h3 className="text-3xl font-bold text-gray-900 mb-1 tracking-tight">{count}</h3>
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">{label}</p>
       </div>
 
       {/* Trend Indicator */}
       {trend && (
         <div
-          className={`inline-flex items-center gap-1 text-xs font-semibold mb-2 ${
+          className={`inline-flex items-center gap-1.5 text-xs font-bold mb-3 px-2.5 py-1 rounded-full ${
             trend.percentage === 0
-              ? "text-gray-600"
+              ? "bg-gray-100 text-gray-700"
               : trend.isPositive
-                ? "text-green-600"
-                : "text-red-600"
+                ? "bg-green-100 text-green-700"
+                : "bg-red-100 text-red-700"
           }`}
         >
-          <span className="text-base">
+          <span className="text-sm">
             {trend.percentage === 0 ? "→" : trend.isPositive ? "↗" : "↘"}
           </span>
           <span>{Math.abs(trend.percentage)}%</span>
@@ -108,42 +125,45 @@ export function ModernWidget({
       )}
 
       {/* Mini Wave Chart */}
-      <div className="h-10 -mx-2">
-        <svg
-          viewBox="0 0 100 40"
-          preserveAspectRatio="none"
-          className="w-full h-full"
-          suppressHydrationWarning
-        >
-          <defs>
-            <linearGradient
-              id={`gradient-${label.replace(/\s/g, "-")}`}
-              x1="0%"
-              y1="0%"
-              x2="0%"
-              y2="100%"
-            >
-              <stop offset="0%" stopColor={colors.chart} stopOpacity="0.2" />
-              <stop offset="100%" stopColor={colors.chart} stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          {/* Area fill with gradient only - no black */}
-          <path
-            d={`${pathData} L 100,40 L 0,40 Z`}
-            fill={`url(#gradient-${label.replace(/\s/g, "-")})`}
-            stroke="none"
-          />
-          {/* Line stroke */}
-          <path
-            d={pathData}
-            fill="none"
-            stroke={colors.chart}
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.8"
-          />
-        </svg>
+      <div className="h-12 -mx-2 mt-2">
+        {isClient ? (
+          <svg
+            viewBox="0 0 100 40"
+            preserveAspectRatio="none"
+            className="w-full h-full"
+          >
+            <defs>
+              <linearGradient
+                id={`gradient-${label.replace(/\s/g, "-")}`}
+                x1="0%"
+                y1="0%"
+                x2="0%"
+                y2="100%"
+              >
+                <stop offset="0%" stopColor={colors.chart} stopOpacity="0.3" />
+                <stop offset="100%" stopColor={colors.chart} stopOpacity="0.05" />
+              </linearGradient>
+            </defs>
+            {/* Area fill with gradient */}
+            <path
+              d={`${pathData} L 100,40 L 0,40 Z`}
+              fill={`url(#gradient-${label.replace(/\s/g, "-")})`}
+              stroke="none"
+            />
+            {/* Line stroke */}
+            <path
+              d={pathData}
+              fill="none"
+              stroke={colors.chart}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity="0.9"
+            />
+          </svg>
+        ) : (
+          <div className="w-full h-full bg-gray-100 rounded animate-pulse" />
+        )}
       </div>
     </div>
   );

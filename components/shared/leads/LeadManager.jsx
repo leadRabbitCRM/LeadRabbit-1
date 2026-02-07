@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useState, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
 import axios from "@/lib/axios";
 import Filter from "./ui/Filter";
 import AutoLoad from "./AutoLoad";
@@ -21,7 +21,7 @@ import {
 } from "@internationalized/date";
 import { Tabs, Tab, Spinner } from "@heroui/react";
 
-export default function LeadManager({
+export default forwardRef(function LeadManager({
   favorites: externalFavorites,
   onToggleFavorite: externalToggleFavorite,
   showFavoritesOnly: initialShowFavoritesOnly = false,
@@ -31,7 +31,7 @@ export default function LeadManager({
   isAdmin = false,
   userEmail = null,
   userName = null,
-}) {
+}, ref) {
   const [leads, setLeads] = useState([]);
   const [filteredLeads, setFilteredLeads] = useState([]);
   const [currentUserName, setCurrentUserName] = useState(userName || "");
@@ -45,6 +45,7 @@ export default function LeadManager({
   );
   const [quickFilter, setQuickFilter] = useState("all");
   const [allUsers, setAllUsers] = useState([]); // Add users state for admin
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   // Track fetches to prevent Strict Mode double-fetching
   const leadsFetchRef = useRef(false);
@@ -125,6 +126,14 @@ export default function LeadManager({
       localStorage.setItem("leadRabbit_favorites", JSON.stringify(favorites));
     }
   }, [favorites, externalFavorites, isAdmin]);
+
+  // Expose refetch method via ref
+  useImperativeHandle(ref, () => ({
+    refetch: async () => {
+      leadsFetchRef.current = false;
+      setRefetchTrigger(prev => prev + 1);
+    },
+  }), []);
 
   // Fetch leads based on user role - with guard against Strict Mode double-fetching
   useEffect(() => {
@@ -213,7 +222,7 @@ export default function LeadManager({
         abortControllerRef.current.abort();
       }
     };
-  }, [isAdmin]);
+  }, [isAdmin, refetchTrigger]);
 
   // Apply filters whenever leads or filters change
   useEffect(() => {
@@ -731,4 +740,4 @@ export default function LeadManager({
       </div>
     </div>
   );
-}
+});

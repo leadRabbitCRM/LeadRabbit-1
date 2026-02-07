@@ -210,6 +210,8 @@ export default function EmpTable() {
   const [isSavingEdit, setIsSavingEdit] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [deleteLeadCount, setDeleteLeadCount] = React.useState(0);
+  const [isLoadingLeadCount, setIsLoadingLeadCount] = React.useState(false);
   const [verifyTarget, setVerifyTarget] = React.useState(null);
   const [isVerifying, setIsVerifying] = React.useState(false);
   const [confirmAction, setConfirmAction] = React.useState(null);
@@ -300,17 +302,9 @@ export default function EmpTable() {
   const handleViewProfile = React.useCallback(
     (user) => {
       if (!user?.id) return;
-      setConfirmAction({
-        type: "view",
-        user: user,
-        title: "View Employee Profile",
-        message: `Are you sure you want to view ${user.name}'s profile?`,
-        confirmText: "View Profile",
-        action: () => router.push(`/admin/employees/${user.id}`),
-      });
-      onConfirmModalOpen();
+      router.push(`/admin/employees/${user.id}`);
     },
-    [router, onConfirmModalOpen],
+    [router],
   );
 
   const handleVerifyEmployee = React.useCallback(
@@ -440,20 +434,26 @@ export default function EmpTable() {
   );
 
   const handleOpenDelete = React.useCallback(
-    (user) => {
+    async (user) => {
       if (!user?.id) return;
 
-      setConfirmAction({
-        type: "delete",
-        user: user,
-        title: "Delete Employee",
-        message: `Are you sure you want to delete ${user.name}? This action cannot be undone and will permanently remove all their data.`,
-        confirmText: "Delete Employee",
-        action: () => performDelete(user),
-      });
-      onConfirmModalOpen();
+      // First fetch the lead count for this employee
+      setIsLoadingLeadCount(true);
+      try {
+        const response = await axios.get(`admin/employees/${user.id}/lead-stats`);
+        const leadCount = response.data?.total || 0;
+        setDeleteLeadCount(leadCount);
+      } catch (error) {
+        console.error("Failed to fetch lead count for employee:", error);
+        setDeleteLeadCount(0);
+      } finally {
+        setIsLoadingLeadCount(false);
+      }
+
+      setDeleteTarget(user);
+      onDeleteModalOpen();
     },
-    [onConfirmModalOpen],
+    [onDeleteModalOpen],
   );
 
   const handleSaveEdit = React.useCallback(
@@ -511,16 +511,6 @@ export default function EmpTable() {
     [editEmployee, onEditModalOpenChange, addToast],
   );
 
-  const performDelete = React.useCallback(
-    (user) => {
-      setDeleteTarget(user);
-      setConfirmAction(null);
-      onConfirmModalOpenChange(false);
-      onDeleteModalOpen();
-    },
-    [onDeleteModalOpen, onConfirmModalOpenChange],
-  );
-
   const handleConfirmDelete = React.useCallback(async () => {
     if (!deleteTarget?.id) return;
 
@@ -538,6 +528,7 @@ export default function EmpTable() {
 
       onDeleteModalOpenChange(false);
       setDeleteTarget(null);
+      setDeleteLeadCount(0);
     } catch (error) {
       console.error("Failed to delete employee", error);
       const message =
@@ -789,54 +780,64 @@ export default function EmpTable() {
             <div className="relative flex justify-end items-center gap-2">
               <Dropdown>
                 <DropdownTrigger>
-                  <Button isIconOnly size="sm" variant="light">
-                    <VerticalDotsIcon className="text-default-300" />
+                  <Button 
+                    isIconOnly 
+                    size="sm" 
+                    variant="light"
+                    className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                  >
+                    <VerticalDotsIcon className="w-5 h-5" />
                   </Button>
                 </DropdownTrigger>
                 <DropdownMenu aria-label="User actions">
                   <DropdownItem
                     key="view"
                     onPress={() => handleViewProfile(user)}
-                    startContent={<UserIcon className="w-4 h-4" />}
+                    startContent={<UserIcon className="w-5 h-5" />}
+                    className="py-2"
                   >
                     View Profile
                   </DropdownItem>
                   <DropdownItem
                     key="verify"
                     onPress={() => handleVerifyEmployee(user)}
-                    startContent={<CheckBadgeIcon className="w-4 h-4" />}
+                    startContent={<CheckBadgeIcon className="w-5 h-5" />}
                     color={user.isVerified ? "warning" : "success"}
+                    className="py-2"
                   >
                     {user.isVerified ? "Unverify Profile" : "Verify Profile"}
                   </DropdownItem>
                   <DropdownItem
                     key="update"
                     onPress={() => handleOpenEdit(user)}
-                    startContent={<PencilIcon className="w-4 h-4" />}
+                    startContent={<PencilIcon className="w-5 h-5" />}
+                    className="py-2"
                   >
                     Update Profile
                   </DropdownItem>
                   <DropdownItem
                     key="resetPassword"
                     onPress={() => handleResetPassword(user)}
-                    startContent={<KeyIcon className="w-4 h-4" />}
+                    startContent={<KeyIcon className="w-5 h-5" />}
                     color="warning"
+                    className="py-2"
                   >
                     Reset Password
                   </DropdownItem>
                   <DropdownItem
                     key="resetMfa"
                     onPress={() => handleResetMfa(user)}
-                    startContent={<ShieldExclamationIcon className="w-4 h-4" />}
+                    startContent={<ShieldExclamationIcon className="w-5 h-5" />}
                     color="warning"
+                    className="py-2"
                   >
                     Reset MFA
                   </DropdownItem>
                   <DropdownItem
                     key="delete"
-                    className={user.email?.toLowerCase() === currentUserEmail?.toLowerCase() ? "text-gray-400" : "text-danger"}
+                    className={user.email?.toLowerCase() === currentUserEmail?.toLowerCase() ? "text-gray-400 py-2" : "text-danger py-2"}
                     color={user.email?.toLowerCase() === currentUserEmail?.toLowerCase() ? "default" : "danger"}
-                    startContent={<TrashIcon className="w-4 h-4" />}
+                    startContent={<TrashIcon className="w-5 h-5" />}
                     onPress={() => handleOpenDelete(user)}
                     isDisabled={user.email?.toLowerCase() === currentUserEmail?.toLowerCase()}
                   >
@@ -1175,7 +1176,8 @@ export default function EmpTable() {
             {sortedItems.map((user) => (
               <div
                 key={user.id}
-                className="bg-white/95 backdrop-blur-sm rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 hover:border-gray-200"
+                className="bg-white/95 backdrop-blur-sm rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md hover:border-blue-200 active:scale-[0.99] transition-all duration-200 cursor-pointer"
+                onClick={() => handleViewProfile(user)}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center space-x-3 flex-1">
@@ -1208,30 +1210,33 @@ export default function EmpTable() {
                       </p>
                     </div>
                   </div>
-                  <Dropdown>
-                    <DropdownTrigger>
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="light"
-                        className="text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                      >
-                        <VerticalDotsIcon className="w-4 h-4" />
-                      </Button>
-                    </DropdownTrigger>
+                  <div onClick={(e) => e.stopPropagation()} className="hidden">
+                    <Dropdown>
+                      <DropdownTrigger>
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                        >
+                          <VerticalDotsIcon className="w-5 h-5" />
+                        </Button>
+                      </DropdownTrigger>
                     <DropdownMenu aria-label="User actions">
                       <DropdownItem
                         key="view"
                         onPress={() => handleViewProfile(user)}
-                        startContent={<UserIcon className="w-4 h-4" />}
+                        startContent={<UserIcon className="w-5 h-5" />}
+                        className="py-2"
                       >
                         View Profile
                       </DropdownItem>
                       <DropdownItem
                         key="verify"
                         onPress={() => handleVerifyEmployee(user)}
-                        startContent={<CheckBadgeIcon className="w-4 h-4" />}
+                        startContent={<CheckBadgeIcon className="w-5 h-5" />}
                         color={user.isVerified ? "warning" : "success"}
+                        className="py-2"
                       >
                         {user.isVerified
                           ? "Unverify Profile"
@@ -1240,31 +1245,34 @@ export default function EmpTable() {
                       <DropdownItem
                         key="update"
                         onPress={() => handleOpenEdit(user)}
-                        startContent={<PencilIcon className="w-4 h-4" />}
+                        startContent={<PencilIcon className="w-5 h-5" />}
+                        className="py-2"
                       >
                         Update Profile
                       </DropdownItem>
                       <DropdownItem
                         key="resetPassword"
                         onPress={() => handleResetPassword(user)}
-                        startContent={<KeyIcon className="w-4 h-4" />}
+                        startContent={<KeyIcon className="w-5 h-5" />}
                         color="warning"
+                        className="py-2"
                       >
                         Reset Password
                       </DropdownItem>
                       <DropdownItem
                         key="resetMfa"
                         onPress={() => handleResetMfa(user)}
-                        startContent={<ShieldExclamationIcon className="w-4 h-4" />}
+                        startContent={<ShieldExclamationIcon className="w-5 h-5" />}
                         color="warning"
+                        className="py-2"
                       >
                         Reset MFA
                       </DropdownItem>
                       <DropdownItem
                         key="delete"
-                        className={user.email?.toLowerCase() === currentUserEmail?.toLowerCase() ? "text-gray-400" : "text-danger"}
+                        className={user.email?.toLowerCase() === currentUserEmail?.toLowerCase() ? "text-gray-400 py-2" : "text-danger py-2"}
                         color={user.email?.toLowerCase() === currentUserEmail?.toLowerCase() ? "default" : "danger"}
-                        startContent={<TrashIcon className="w-4 h-4" />}
+                        startContent={<TrashIcon className="w-5 h-5" />}
                         onPress={() => handleOpenDelete(user)}
                         isDisabled={user.email?.toLowerCase() === currentUserEmail?.toLowerCase()}
                       >
@@ -1272,6 +1280,7 @@ export default function EmpTable() {
                       </DropdownItem>
                     </DropdownMenu>
                   </Dropdown>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100">
@@ -1409,21 +1418,67 @@ export default function EmpTable() {
         <ModalContent>
           {(onClose) => (
             <>
-              <ModalHeader>Delete employee</ModalHeader>
+              <ModalHeader>Delete Employee</ModalHeader>
               <ModalBody>
-                <p className="text-sm text-gray-600">
-                  Are you sure you want to delete{" "}
-                  <span className="font-semibold text-gray-900">
-                    {deleteTarget?.name ?? "this employee"}
-                  </span>
-                  ? This action cannot be undone.
-                </p>
+                <div className="space-y-4">
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0">
+                      <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                        <TrashIcon className="w-5 h-5 text-red-600" />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-900 font-medium">
+                        Are you sure you want to delete{" "}
+                        <span className="font-semibold">
+                          {deleteTarget?.name ?? "this employee"}
+                        </span>
+                        ?
+                      </p>
+                      
+                      {isLoadingLeadCount ? (
+                        <div className="mt-2 flex items-center space-x-2">
+                          <Spinner size="sm" />
+                          <span className="text-sm text-gray-500">Checking assigned leads...</span>
+                        </div>
+                      ) : (
+                        <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                          {deleteLeadCount > 0 ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <UserIcon className="w-4 h-4 text-amber-600" />
+                                <span className="text-sm font-medium text-amber-800">
+                                  This employee has {deleteLeadCount} lead{deleteLeadCount !== 1 ? 's' : ''} assigned
+                                </span>
+                              </div>
+                              <p className="text-sm text-amber-700">
+                                <strong>Important:</strong> These leads will be automatically unassigned and kept in the system, but you may want to reassign them to another employee first to maintain continuity.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="flex items-center space-x-2">
+                              <CheckBadgeIcon className="w-4 h-4 text-green-600" />
+                              <span className="text-sm text-green-800">
+                                No leads are currently assigned to this employee.
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      <p className="mt-3 text-xs text-gray-500">
+                        This action cannot be undone. The employee account will be permanently removed.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </ModalBody>
               <ModalFooter>
                 <Button
                   variant="light"
                   onPress={() => {
                     setDeleteTarget(null);
+                    setDeleteLeadCount(0);
                     onClose();
                   }}
                 >
@@ -1433,8 +1488,9 @@ export default function EmpTable() {
                   color="danger"
                   onPress={handleConfirmDelete}
                   isLoading={isDeleting}
+                  className={deleteLeadCount > 0 ? "bg-red-600 hover:bg-red-700" : ""}
                 >
-                  Delete
+                  {deleteLeadCount > 0 ? `Delete Despite ${deleteLeadCount} Assigned Lead${deleteLeadCount !== 1 ? 's' : ''}` : 'Delete Employee'}
                 </Button>
               </ModalFooter>
             </>

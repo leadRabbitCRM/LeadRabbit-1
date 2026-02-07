@@ -6,8 +6,9 @@ import {
   UserCircleIcon,
   UserGroupIcon,
   LinkIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/solid";
-import { Chip, Switch, Tab, Tabs, useDisclosure, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, DateRangePicker, Checkbox, addToast } from "@heroui/react";
+import { Chip, Switch, Tab, Tabs, useDisclosure, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, DateRangePicker, Checkbox, addToast, Spinner } from "@heroui/react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import CustomModal from "./components/CustomModal";
@@ -18,8 +19,12 @@ export default function ConnectorsPage() {
   const [isFacebookEnabled, setIsFacebookEnabled] = useState(false);
   const [facebookPages, setFacebookPages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pageLeadCounts, setPageLeadCounts] = useState({});
+  const [formLeadCounts, setFormLeadCounts] = useState({});
   const [syncStats, setSyncStats] = useState({
     totalLeads: 0,
+    databaseLeadsCount: 0,
     activePage: null,
   });
   const [selectedTab, setSelectedTab] = useState("available");
@@ -49,8 +54,7 @@ export default function ConnectorsPage() {
   });
 
   useEffect(() => {
-    fetchFacebookPages();
-    fetch99AcresAccounts();
+    fetchAllData();
 
     // Handle Facebook auth success callback
     const urlParams = new URLSearchParams(window.location.search);
@@ -60,6 +64,87 @@ export default function ConnectorsPage() {
       fetchFacebookPages();
     }
   }, []);
+
+  useEffect(() => {
+    if (facebookPages.length > 0) {
+      console.log("📊 Fetching page-specific lead counts...");
+      fetchPageLeadCounts();
+      fetchFormLeadCounts();
+    }
+  }, [facebookPages]);
+
+  const fetchAllData = async () => {
+    try {
+      await Promise.all([
+        fetchFacebookPages(),
+        fetch99AcresAccounts(),
+        fetchDatabaseLeadsCount()
+      ]);
+      console.log("✅ All data fetched successfully");
+    } catch (error) {
+      console.error("❌ Error fetching all data:", error);
+    }
+  };
+
+  const fetchPageLeadCounts = async () => {
+    try {
+      const counts = {};
+      for (const page of facebookPages) {
+        const response = await fetch(`/api/leads/countByPage?pageId=${encodeURIComponent(page.pageId)}`);
+        if (response.ok) {
+          const data = await response.json();
+          counts[page.pageId] = data.count || 0;
+          console.log(`✅ Page ${page.name}: ${data.count} leads from database`);
+        }
+      }
+      setPageLeadCounts(counts);
+    } catch (error) {
+      console.error("❌ Error fetching page lead counts:", error);
+    }
+  };
+
+  const fetchFormLeadCounts = async () => {
+    try {
+      const counts = {};
+      for (const page of facebookPages) {
+        if (page.leadForms?.length > 0) {
+          for (const form of page.leadForms) {
+            const response = await fetch(`/api/leads/countByPage?pageId=${encodeURIComponent(page.pageId)}&formId=${encodeURIComponent(form.formId)}`);
+            if (response.ok) {
+              const data = await response.json();
+              counts[form.formId] = data.count || 0;
+              console.log(`✅ Form ${form.name}: ${data.count} leads from database`);
+            }
+          }
+        }
+      }
+      setFormLeadCounts(counts);
+    } catch (error) {
+      console.error("❌ Error fetching form lead counts:", error);
+    }
+  };
+
+  const fetchDatabaseLeadsCount = async () => {
+    try {
+      console.log("🔄 Fetching leads count from database...");
+      const response = await fetch("/api/leads/count");
+      
+      if (!response.ok) {
+        console.error("❌ Error fetching leads count: HTTP", response.status);
+        setSyncStats((prev) => ({ ...prev, databaseLeadsCount: 0 }));
+        return;
+      }
+      
+      const data = await response.json();
+      const count = data?.count || 0;
+      
+      console.log("✅ Database leads count fetched:", count, "from database:", data?.dbName);
+      setSyncStats((prev) => ({ ...prev, databaseLeadsCount: count }));
+    } catch (error) {
+      console.error("❌ Error fetching leads count from database:", error);
+      setSyncStats((prev) => ({ ...prev, databaseLeadsCount: 0 }));
+    }
+  };
 
   const fetchFacebookPages = async () => {
     try {
@@ -86,9 +171,21 @@ export default function ConnectorsPage() {
         ) || 0;
         return total + pageLeads;
       }, 0);
-      setSyncStats((prev) => ({ ...prev, totalLeads }));
+      console.log("✅ Facebook leads count from integration:", totalLeads);
     } catch (error) {
       console.error("Error fetching Facebook pages:", error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchAllData();
+      console.log("✅ Integration data refreshed successfully");
+    } catch (error) {
+      console.error("❌ Error refreshing integration data:", error);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -102,15 +199,11 @@ export default function ConnectorsPage() {
       const accounts = await response.json();
       setNinetyNineAcresAccounts(accounts);
 
-      // Count total leads from 99acres by querying the database through the accounts
+      // Log total leads from 99acres (for reference only)
       const totalLeads99 = accounts.reduce((total, account) => {
         return total + (account.totalLeads || 0);
       }, 0);
-      
-      setSyncStats((prev) => ({ 
-        ...prev, 
-        totalLeads: prev.totalLeads + totalLeads99
-      }));
+      console.log("✅ 99acres leads count from integration:", totalLeads99);
     } catch (error) {
       console.error("Error fetching 99acres accounts:", error);
       setNinetyNineAcresAccounts([]); // Set empty array on error
@@ -621,8 +714,24 @@ export default function ConnectorsPage() {
               </h1>
               <p className="text-blue-100 text-xs">Manage system connectors</p>
             </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-xl p-2 text-white">
-              <LinkIcon className="w-6 h-6" />
+            <div className="flex items-center gap-2">
+              {/* Refresh Button */}
+              <Button
+                isIconOnly
+                variant="flat"
+                className={`bg-white/20 backdrop-blur-sm text-white border-0 hover:bg-white/30 transition-all duration-200 ${
+                  isRefreshing ? "opacity-60" : ""
+                }`}
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+              >
+                <ArrowPathIcon
+                  className={`w-5 h-5 ${isRefreshing ? "animate-spin" : ""}`}
+                />
+              </Button>
+              <div className="bg-white/20 backdrop-blur-sm rounded-xl p-2 text-white">
+                <LinkIcon className="w-6 h-6" />
+              </div>
             </div>
           </div>
         </div>
@@ -633,9 +742,9 @@ export default function ConnectorsPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 md:gap-3">
           <div className="bg-white/95 backdrop-blur-sm rounded-lg p-2 sm:p-3 text-center shadow-sm">
             <div className="text-lg sm:text-xl font-bold text-green-600">
-              {facebookPages.filter(p => p.isActive).length + ninetyNineAcresAccounts.filter(a => a.isActive).length}
+              {syncStats.databaseLeadsCount}
             </div>
-            <div className="text-xs sm:text-sm text-gray-600">Enabled</div>
+            <div className="text-xs sm:text-sm text-gray-600">Total Leads</div>
           </div>
           <div className="bg-white/95 backdrop-blur-sm rounded-lg p-2 sm:p-3 text-center shadow-sm">
             <div className="text-lg sm:text-xl font-bold text-orange-600">
@@ -645,9 +754,9 @@ export default function ConnectorsPage() {
           </div>
           <div className="bg-white/95 backdrop-blur-sm rounded-lg p-2 sm:p-3 text-center shadow-sm col-span-2 sm:col-span-1">
             <div className="text-lg sm:text-xl font-bold text-purple-600">
-              {syncStats.totalLeads}
+              {facebookPages.filter(p => p.isActive).length + ninetyNineAcresAccounts.filter(a => a.isActive).length}
             </div>
-            <div className="text-xs sm:text-sm text-gray-600">Total leads</div>
+            <div className="text-xs sm:text-sm text-gray-600">Enabled</div>
           </div>
         </div>
       </div>
@@ -806,10 +915,7 @@ export default function ConnectorsPage() {
                         size="md"
                         className="text-xs sm:text-sm flex-shrink-0"
                       >
-                        {page.leadForms?.reduce(
-                          (sum, form) => sum + (typeof form.leads === 'number' ? form.leads : (form.leads?.length || 0)),
-                          0,
-                        ) || 0}
+                        {pageLeadCounts[page.pageId] !== undefined ? pageLeadCounts[page.pageId] : <Spinner size="sm" color="current" />}
                       </Chip>
                     </div>
                     <div className="flex gap-1 flex-wrap">
@@ -877,7 +983,7 @@ export default function ConnectorsPage() {
                                   color="primary"
                                   className="text-[10px] h-5"
                                 >
-                                  {typeof form.leads === 'number' ? form.leads : (form.leads?.length || 0)} leads
+                                  {formLeadCounts[form.formId] !== undefined ? formLeadCounts[form.formId] : <Spinner size="sm" color="current" />} leads
                                 </Chip>
                               </div>
                             </div>
@@ -948,10 +1054,7 @@ export default function ConnectorsPage() {
                           size="md"
                           className="text-xs sm:text-sm flex-shrink-0"
                         >
-                          {page.leadForms?.reduce(
-                            (sum, form) => sum + (typeof form.leads === 'number' ? form.leads : (form.leads?.length || 0)),
-                            0,
-                          ) || 0}
+                          {pageLeadCounts[page.pageId] !== undefined ? pageLeadCounts[page.pageId] : <Spinner size="sm" color="current" />}
                         </Chip>
                         <Button
                           color="success"

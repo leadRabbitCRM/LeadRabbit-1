@@ -66,7 +66,7 @@ export default function AdminLeads({
         setAllUsers(users);
         setIsLoading(false);
       } catch (error) {
-        console.error("❌ Admin: Error fetching all leads:", error);
+        console.error("[ERROR] Admin: Error fetching all leads:", error);
 
         // Fallback: try alternative approach
         try {
@@ -75,7 +75,7 @@ export default function AdminLeads({
           const fallbackLeads = fallbackResponse.data ?? [];
           setLeads(fallbackLeads);
         } catch (fallbackError) {
-          console.error("❌ Admin: Fallback failed:", fallbackError);
+          console.error("[ERROR] Admin: Fallback failed:", fallbackError);
           setLeads([]);
           setFetchError(
             "Unable to load leads. Please check your admin permissions or contact support.",

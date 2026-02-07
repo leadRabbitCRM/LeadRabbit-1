@@ -882,7 +882,7 @@ const Filter = forwardRef(
                 </div>
 
                 {/* Fixed Footer */}
-                <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 px-4 py-3 shadow-lg">
+                <div className="fixed bottom-20 left-0 right-0 z-40 bg-white border-t border-gray-200 px-4 py-3 shadow-lg">
                   <div className="flex gap-3">
                     <button
                       onClick={onClose}

@@ -49,8 +49,13 @@ export default function UserLayout({ children }) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Handle browser back button
+  // Handle browser back button - only on /user page (main dashboard)
   useEffect(() => {
+    // Only enable back button confirmation on the main user dashboard
+    if (pathname !== "/user") {
+      return;
+    }
+
     // Track if we've set up the initial history
     let historyLength = window.history.length;
     
@@ -79,7 +84,7 @@ export default function UserLayout({ children }) {
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
-  }, []);
+  });
 
   // Handle logout confirmation
   const handleConfirmLogout = useCallback(async () => {
