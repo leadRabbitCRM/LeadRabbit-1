@@ -8,9 +8,11 @@ export default async function auth(req, res) {
 
   // Optional: reset the cookie after login so middleware sees it
   if (appToken) {
+    const isProduction = process.env.NODE_ENV === "production";
+    const securePart = isProduction ? "; Secure" : "";
     res.setHeader(
       "Set-Cookie",
-      `appToken=${appToken}; Path=/; HttpOnly; SameSite=Lax; Secure`,
+      `appToken=${appToken}; Path=/; HttpOnly; SameSite=Lax${securePart}`,
     );
   }
 

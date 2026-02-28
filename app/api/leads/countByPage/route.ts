@@ -33,33 +33,20 @@ export async function GET(req: NextRequest) {
     const pageId = req.nextUrl.searchParams.get("pageId");
     const formId = req.nextUrl.searchParams.get("formId");
 
-    console.log(`🔍 leadsCountByPage query - pageId: ${pageId}, formId: ${formId}`);
-
     if (!pageId) {
-      console.error("❌ pageId is required");
       return NextResponse.json({ error: "pageId is required" }, { status: 400 });
     }
 
     if (formId) {
-      // Count leads for a specific form
-      const query = { 
+      const count = await leadsCollection.countDocuments({
         "metaData.pageId": pageId,
-        "metaData.formId": formId 
-      };
-      console.log(`🔎 Querying leads with filter:`, JSON.stringify(query));
-      const count = await leadsCollection.countDocuments(query);
-      
-      console.log(`✅ leadsCountByPage: Found ${count} leads for pageId=${pageId}, formId=${formId}`);
+        "metaData.formId": formId,
+      });
       return NextResponse.json({ count, pageId, formId }, { status: 200 });
     } else {
-      // Count leads for a page (all forms)
-      const query = { 
-        "metaData.pageId": pageId
-      };
-      console.log(`🔎 Querying leads with filter:`, JSON.stringify(query));
-      const count = await leadsCollection.countDocuments(query);
-      
-      console.log(`✅ leadsCountByPage: Found ${count} leads for pageId=${pageId}`);
+      const count = await leadsCollection.countDocuments({
+        "metaData.pageId": pageId,
+      });
       return NextResponse.json({ count, pageId }, { status: 200 });
     }
   } catch (error) {

@@ -195,19 +195,18 @@ export default forwardRef(function LeadManager({
           error,
         );
 
+        // If 401 Unauthorized, redirect to login
+        if (error?.response?.status === 401) {
+          console.warn("⚠️ Session expired — redirecting to login");
+          window.location.href = "/login";
+          return;
+        }
+
         if (isAdmin) {
-          // Admin fallback: try alternative approach
-          try {
-            const fallbackResponse = await axios.get("leads/getLeads");
-            const fallbackLeads = fallbackResponse.data ?? [];
-            setLeads(fallbackLeads);
-          } catch (fallbackError) {
-            console.error("❌ Admin: Fallback failed:", fallbackError);
-            setLeads([]);
-            setFetchError(
-              "Unable to load leads. Please check your admin permissions or contact support.",
-            );
-          }
+          setLeads([]);
+          setFetchError(
+            "Unable to load leads. Please check your admin permissions or contact support.",
+          );
         } else {
           setLeads([]);
           setFetchError("Unable to load leads right now.");

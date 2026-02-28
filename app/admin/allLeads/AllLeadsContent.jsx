@@ -58,6 +58,10 @@ export default function AllLeadsContent() {
       try {
         leadsFilterFetchRef.current = true;
         const response = await fetch("/api/leads/getAllLeads");
+        if (response.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
         const leadsData = await response.json();
         setLeads(leadsData || []);
       } catch (error) {
